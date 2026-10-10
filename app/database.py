@@ -20,6 +20,9 @@ Path("data").mkdir(exist_ok=True)
 engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 

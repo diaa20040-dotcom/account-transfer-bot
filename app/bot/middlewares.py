@@ -68,23 +68,40 @@ class MandatorySubMiddleware(BaseMiddleware):
 
         lang = "ar"
         invite_link: str | None = None
+        msub_active = False
+        chat_id = ""
         db = SessionLocal()
         try:
             cfg = get_mandatory_sub_config(db)
             if not cfg.active:
-                await maybe_credit_referral(db, bot, telegram_id)
-                return await handler(event, data)
-            invite_link = cfg.invite_link
-            from app.database import User
+                msub_active = False
+            else:
+                msub_active = True
+                invite_link = cfg.invite_link
+                chat_id = cfg.chat_id
+                from app.database import User
 
-            user = db.query(User).filter_by(telegram_id=telegram_id).first()
-            if user:
-                lang = user.language
-            if await is_user_subscribed(bot, cfg.chat_id, telegram_id):
-                await maybe_credit_referral(db, bot, telegram_id)
-                return await handler(event, data)
+                user = db.query(User).filter_by(telegram_id=telegram_id).first()
+                if user:
+                    lang = user.language
         finally:
             db.close()
+
+        if not msub_active:
+            db2 = SessionLocal()
+            try:
+                await maybe_credit_referral(db2, bot, telegram_id)
+            finally:
+                db2.close()
+            return await handler(event, data)
+
+        if await is_user_subscribed(bot, chat_id, telegram_id):
+            db2 = SessionLocal()
+            try:
+                await maybe_credit_referral(db2, bot, telegram_id)
+            finally:
+                db2.close()
+            return await handler(event, data)
 
         if isinstance(event, CallbackQuery):
             await event.answer(t(lang, "mandatory_sub_fail"), show_alert=True)
