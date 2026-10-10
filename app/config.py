@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,7 +7,10 @@ class Settings(BaseSettings):
 
     bot_token: str
     bot_username: str = ""
-    admin_telegram_ids: str = ""
+    admin_telegram_ids: str = Field(
+        default="",
+        validation_alias=AliasChoices("ADMIN_TELEGRAM_IDS", "ADMIN_IDS"),
+    )
     admin_telegram_usernames: str = ""
     admin_password: str = "change_me"
     secret_key: str = "dev-secret-change-me"
