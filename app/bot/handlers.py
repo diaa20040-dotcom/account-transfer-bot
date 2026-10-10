@@ -199,6 +199,7 @@ async def verify_mandatory(callback: CallbackQuery, bot: Bot) -> None:
             return
         admin = is_admin(callback.from_user.id, callback.from_user.username)
         name = callback.from_user.first_name or "User"
+        db.refresh(user)
         await try_award_referral(db, bot, user)
         db.refresh(user)
         await callback.answer(t(lang, "mandatory_sub_ok"), show_alert=True)

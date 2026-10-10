@@ -7,22 +7,35 @@ from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscri
 
 
 async def referral_requirement_met(db: Session, bot: Bot, user: User) -> bool:
+    """Referral counts only after the invited user joins the mandatory channel."""
     cfg = get_mandatory_sub_config(db)
     if not cfg.active:
         return True
     return await is_user_subscribed(bot, cfg.chat_id, user.telegram_id)
 
 
+def _get_or_create_referrer(db: Session, referrer_telegram_id: int) -> User | None:
+    if referrer_telegram_id <= 0:
+        return None
+    referrer = db.query(User).filter_by(telegram_id=referrer_telegram_id).first()
+    if referrer:
+        return referrer
+    referrer = User(telegram_id=referrer_telegram_id, language="ar", points=0)
+    db.add(referrer)
+    db.flush()
+    return referrer
+
+
 def link_referrer(
     db: Session, user: User, referrer_telegram_id: int | None
 ) -> bool:
-    """Attach referrer on first eligible /start (new or existing user without a referrer)."""
+    """Attach referrer on first /start with ref_… (referrer row created if needed)."""
     if not referrer_telegram_id or referrer_telegram_id == user.telegram_id:
         return False
-    if user.referred_by_id or user.referral_credited:
+    if user.referred_by_id:
         return False
-    referrer = db.query(User).filter_by(telegram_id=referrer_telegram_id).first()
-    if not referrer:
+    referrer = _get_or_create_referrer(db, referrer_telegram_id)
+    if not referrer or referrer.id == user.id:
         return False
     user.referred_by_id = referrer.id
     db.commit()
