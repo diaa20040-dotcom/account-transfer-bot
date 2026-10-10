@@ -95,9 +95,12 @@ def register_routes(app: FastAPI, bot: Bot, dp: Dispatcher) -> None:
             if settings.webhook_secret:
                 if x_telegram_bot_api_secret_token != settings.webhook_secret:
                     raise HTTPException(status_code=403, detail="invalid webhook secret")
-            payload = await request.json()
-            update = Update.model_validate(payload)
-            await dp.feed_update(bot, update)
+            try:
+                payload = await request.json()
+                update = Update.model_validate(payload)
+                await dp.feed_update(bot, update)
+            except Exception:
+                logger.exception("Webhook update handling failed")
             return {"ok": True}
 
 
@@ -127,20 +130,29 @@ async def main() -> None:
         if use_webhook_mode():
             url = webhook_url()
             secret = settings.webhook_secret or None
-            await bot.set_webhook(
-                url,
-                secret_token=secret,
-                allowed_updates=dp.resolve_used_update_types(),
-            )
-            logger.info("Webhook mode: %s", url)
+            for attempt in range(1, 6):
+                try:
+                    await bot.set_webhook(
+                        url,
+                        secret_token=secret,
+                        allowed_updates=dp.resolve_used_update_types(),
+                        drop_pending_updates=False,
+                    )
+                    info = await bot.get_webhook_info()
+                    if info.url == url:
+                        logger.info("Webhook mode: %s", url)
+                        break
+                    logger.warning("Webhook URL mismatch after set (attempt %s)", attempt)
+                except Exception:
+                    logger.exception("set_webhook failed (attempt %s)", attempt)
+                await asyncio.sleep(min(attempt * 2, 10))
         else:
             polling_task = asyncio.create_task(run_polling_with_restart(bot, dp))
             logger.info("Polling mode (set RENDER_EXTERNAL_URL on cloud hosts)")
 
         yield
 
-        if use_webhook_mode():
-            await bot.delete_webhook(drop_pending_updates=False)
+        # Do not delete webhook on shutdown — Render redeploys would leave the bot offline.
         if polling_task:
             polling_task.cancel()
             try:
