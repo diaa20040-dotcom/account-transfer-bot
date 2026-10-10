@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>طلبات التحويل</h1>
+<div class="card">
+<table>
+  <tr><th>#</th><th>تاريخ</th><th>تيليجرام</th><th>الدولة</th><th>الحساب</th><th>كلمة المرور</th><th>الحالة</th><th>تحديث</th></tr>
+  {% for r in items %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td>{{ r.created_at }}</td>
+    <td>{{ r.user.telegram_id }} @{{ r.user.username or '—' }}</td>
+    <td>{{ r.country.name_ar }}</td>
+    <td>{{ r.account_name }}</td>
+    <td><code>{{ r.account_password }}</code></td>
+    <td>{{ r.status }}</td>
+    <td>
+      <form method="post" action="/transfers/{{ r.id }}/status" style="display:flex;gap:4px;">
+        <select name="status">
+          <option value="pending" {% if r.status=='pending' %}selected{% endif %}>pending</option>
+          <option value="processing" {% if r.status=='processing' %}selected{% endif %}>processing</option>
+          <option value="done" {% if r.status=='done' %}selected{% endif %}>done</option>
+          <option value="rejected" {% if r.status=='rejected' %}selected{% endif %}>rejected</option>
+        </select>
+        <button class="btn" type="submit">حفظ</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>لوحة التحكم</h1>
+<div class="stats card">
+  <div class="stat"><strong>{{ stats.users }}</strong>مستخدم</div>
+  <div class="stat"><strong>{{ stats.pending }}</strong>طلب معلّق</div>
+  <div class="stat"><strong>{{ stats.tasks }}</strong>مهمة نشطة</div>
+  <div class="stat"><strong>{{ stats.referral_pts }}</strong>نقطة إحالة</div>
+</div>
+<h2>آخر الطلبات</h2>
+<div class="card">
+<table>
+  <tr><th>#</th><th>المستخدم</th><th>الدولة</th><th>الحساب</th><th>الحالة</th></tr>
+  {% for r in recent %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td>{{ r.user.telegram_id }}</td>
+    <td>{{ r.country.name_ar }}</td>
+    <td>{{ r.account_name }}</td>
+    <td>{{ r.status }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5">لا توجد طلبات بعد</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

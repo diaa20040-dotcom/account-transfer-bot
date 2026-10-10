@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}لوحة الإدارة{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="/">الرئيسية</a>
+    <a href="/transfers">طلبات التحويل</a>
+    <a href="/countries">الدول</a>
+    <a href="/tasks">المهام</a>
+    <a href="/users">المستخدمون</a>
+    <a href="/settings">الإعدادات</a>
+    <a href="/logout" class="muted">خروج</a>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">Built with BrainDaemon · Daemon Core</footer>
+</body>
+</html>

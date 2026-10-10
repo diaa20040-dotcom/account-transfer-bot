@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>المستخدمون</h1>
+<div class="card">
+<table>
+  <tr><th>ID</th><th>تيليجرام</th><th>يوزر</th><th>نقاط</th><th>لغة</th><th>تعديل نقاط</th></tr>
+  {% for u in items %}
+  <tr>
+    <td>{{ u.id }}</td>
+    <td>{{ u.telegram_id }}</td>
+    <td>@{{ u.username or '—' }}</td>
+    <td>{{ u.points }}</td>
+    <td>{{ u.language }}</td>
+    <td>
+      <form method="post" action="/users/{{ u.id }}/add" style="display:flex;gap:4px;margin-bottom:4px;">
+        <input name="add_points" type="number" value="10" min="1" style="max-width:80px" title="إضافة">
+        <button class="btn" type="submit">+ إضافة</button>
+      </form>
+      <form method="post" action="/users/{{ u.id }}/points" style="display:flex;gap:4px;">
+        <input name="points" type="number" value="{{ u.points }}" style="max-width:100px">
+        <button class="btn" type="submit">تعيين الرصيد</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

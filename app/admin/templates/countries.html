@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>الدول وتكلفة النقاط</h1>
+<div class="card">
+<h3>إضافة دولة</h3>
+<form method="post" action="/countries/add">
+  <div class="form-row"><input name="name_ar" placeholder="الاسم عربي" required></div>
+  <div class="form-row"><input name="name_en" placeholder="Name EN" required></div>
+  <div class="form-row"><input name="point_cost" type="number" value="50" placeholder="تكلفة النقاط"></div>
+  <div class="form-row"><input name="sort_order" type="number" value="0"></div>
+  <button class="btn" type="submit">إضافة</button>
+</form>
+</div>
+<div class="card">
+<table>
+  <tr><th>عربي</th><th>EN</th><th>نقاط</th><th>نشط</th><th>إجراء</th></tr>
+  {% for c in items %}
+  <tr>
+    <td>{{ c.name_ar }}</td>
+    <td>{{ c.name_en }}</td>
+    <td>{{ c.point_cost }}</td>
+    <td>{{ 'نعم' if c.active else 'لا' }}</td>
+    <td>
+      <form method="post" action="/countries/{{ c.id }}/toggle" style="display:inline"><button class="btn" type="submit">تبديل</button></form>
+      <form method="post" action="/countries/{{ c.id }}/delete" style="display:inline"><button class="btn btn-danger" type="submit">حذف</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>الإعدادات</h1>
+<div class="card">
+<form method="post" action="/settings">
+  <div class="form-row">
+    <label>نقاط كل إحالة ناجحة</label>
+    <input name="referral_points" type="number" value="{{ referral_points }}" required>
+  </div>
+  <button class="btn" type="submit">حفظ</button>
+</form>
+</div>
+{% endblock %}
