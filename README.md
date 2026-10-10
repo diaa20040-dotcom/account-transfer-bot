@@ -35,7 +35,9 @@ python main.py
 
 ## الاستضافة
 
-دليل مجاني وسهل: [DEPLOY-FREE-HOSTING.md](DEPLOY-FREE-HOSTING.md) — Render + GitHub أو Docker على VPS.
+**نشر سريع (Render + GitHub):** [Deploy to Render](https://render.com/deploy?repo=https://github.com/diaa20040-dotcom/account-transfer-bot) — ثم عبّئ `BOT_TOKEN` و`ADMIN_IDS` وغيرها.
+
+دليل كامل: [DEPLOY-FREE-HOSTING.md](DEPLOY-FREE-HOSTING.md)
 
 ## تنبيه أمني
 

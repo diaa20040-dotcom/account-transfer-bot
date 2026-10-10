@@ -10,11 +10,22 @@
 
 ---
 
-## الخيار 1 — Render (الأسهل مع GitHub) ⭐
+## الخيار 1 — Render (الأسهل — من GitHub بنقرة) ⭐
+
+### رابط سريع (Deploy Blueprint)
+
+1. افتح (من الموبايل أو الكمبيوتر، بعد تسجيل الدخول في Render بحساب GitHub):
+
+   **https://render.com/deploy?repo=https://github.com/diaa20040-dotcom/account-transfer-bot**
+
+2. Render يقرأ ملف `render.yaml` تلقائياً.
+3. عند الطلب، أضف **Environment Variables** (Secret) ثم **Apply**:
+
+### أو يدوياً
 
 1. سجّل مجاناً على [render.com](https://render.com) (بحساب GitHub).
 2. **New** → **Blueprint** → اختر مستودع `account-transfer-bot`.
-3. عند الطلب، أضف **Environment Variables** (Secret):
+3. أضف **Environment Variables** (Secret):
    - `BOT_TOKEN` — من BotFather
    - `ADMIN_IDS` — رقم تيليجرام (مثل `8823377492`)
    - `ADMIN_TELEGRAM_USERNAMES` — `Diaoeldeen`
