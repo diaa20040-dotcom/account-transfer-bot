@@ -13,8 +13,9 @@ def main_menu(lang: str, is_admin: bool = False) -> ReplyKeyboardMarkup:
         ],
         [
             KeyboardButton(text=t(lang, "btn_points")),
-            KeyboardButton(text=t(lang, "btn_language")),
+            KeyboardButton(text=t(lang, "btn_topup")),
         ],
+        [KeyboardButton(text=t(lang, "btn_language"))],
     ]
     if is_admin:
         rows.append([KeyboardButton(text=ADMIN_BTN_AR if lang == "ar" else ADMIN_BTN_EN)])

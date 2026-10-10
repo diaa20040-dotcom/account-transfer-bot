@@ -33,7 +33,8 @@ router = Router()
 def _lang_btn_values() -> set[str]:
     return {t("ar", "btn_transfer"), t("en", "btn_transfer"), t("ar", "btn_tasks"), t("en", "btn_tasks"),
             t("ar", "btn_referral"), t("en", "btn_referral"), t("ar", "btn_language"), t("en", "btn_language"),
-            t("ar", "btn_points"), t("en", "btn_points")}
+            t("ar", "btn_points"), t("en", "btn_points"),
+            t("ar", "btn_topup"), t("en", "btn_topup")}
 
 
 @router.message(CommandStart())

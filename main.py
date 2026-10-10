@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app.bot.admin_handlers import router as admin_router
 from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
+from app.bot.payments_handlers import router as payments_router
 from app.bot.middlewares import MandatorySubMiddleware, PrivateChatsOnlyMiddleware
 from app.config import settings
 from app.database import init_db
@@ -57,6 +58,7 @@ async def run_bot() -> None:
     dp.callback_query.middleware(MandatorySubMiddleware())
     dp.include_router(group_guard_router)
     dp.include_router(admin_router)
+    dp.include_router(payments_router)
     dp.include_router(user_router)
     me = await bot.get_me()
     logger.info("Bot started as @%s", me.username)

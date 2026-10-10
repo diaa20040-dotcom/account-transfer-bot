@@ -5,3 +5,7 @@ class TransferStates(StatesGroup):
     choosing_country = State()
     entering_username = State()
     entering_password = State()
+
+
+class TopUpStates(StatesGroup):
+    amount = State()
