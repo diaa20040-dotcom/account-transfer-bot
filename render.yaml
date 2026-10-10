@@ -1,0 +1,29 @@
+# Render Blueprint — connect repo at https://dashboard.render.com
+# New → Blueprint → select this repository
+services:
+  - type: web
+    name: account-transfer-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: ENABLE_WEB_ADMIN
+        value: false
+      - key: SKIP_PIP_ON_START
+        value: 1
+      - key: DATABASE_URL
+        value: sqlite:////app/data/bot.db
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: ADMIN_TELEGRAM_USERNAMES
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: PORT
+        value: 8765
