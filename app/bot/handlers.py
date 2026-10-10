@@ -20,7 +20,7 @@ from app.database import (
 )
 from app.i18n import t
 from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
-from app.services.users import get_or_create_user, referral_count
+from app.services.users import get_or_create_user, referral_count, try_award_referral
 
 router = Router()
 
@@ -72,6 +72,8 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot) -> None:
                 reply_markup=mandatory_sub_keyboard(lang, msub.invite_link),
             )
             return
+        await try_award_referral(db, bot, user)
+        db.refresh(user)
         await message.answer(
             t(lang, "welcome", name=name, points=user.points),
             reply_markup=main_menu(lang, admin),
@@ -183,6 +185,8 @@ async def verify_mandatory(callback: CallbackQuery, bot: Bot) -> None:
             return
         admin = is_admin(callback.from_user.id, callback.from_user.username)
         name = callback.from_user.first_name or "User"
+        await try_award_referral(db, bot, user)
+        db.refresh(user)
         await callback.answer(t(lang, "mandatory_sub_ok"), show_alert=True)
         try:
             await callback.message.edit_reply_markup(reply_markup=None)

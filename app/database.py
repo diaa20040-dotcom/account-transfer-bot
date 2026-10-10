@@ -38,6 +38,7 @@ class User(Base):
     language: Mapped[str] = mapped_column(String(2), default="ar")
     points: Mapped[int] = mapped_column(Integer, default=0)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    referral_credited: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     referred_by: Mapped["User | None"] = relationship(remote_side=[id])
@@ -116,8 +117,23 @@ def sync_default_countries(db) -> None:
     db.commit()
 
 
+def _migrate_user_columns() -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    if "users" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("users")}
+    if "referral_credited" not in cols:
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN referral_credited BOOLEAN NOT NULL DEFAULT 0")
+            )
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _migrate_user_columns()
     db = SessionLocal()
     try:
         if db.query(Country).count() == 0:

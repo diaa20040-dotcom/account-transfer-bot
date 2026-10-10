@@ -1,6 +1,34 @@
+from aiogram import Bot
 from sqlalchemy.orm import Session
 
 from app.database import User, get_setting
+from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
+
+
+async def referral_requirement_met(db: Session, bot: Bot, user: User) -> bool:
+    cfg = get_mandatory_sub_config(db)
+    if not cfg.active:
+        return True
+    return await is_user_subscribed(bot, cfg.chat_id, user.telegram_id)
+
+
+async def try_award_referral(db: Session, bot: Bot, user: User) -> bool:
+    """Grant referrer points once the referred user meets the mandatory-channel rule."""
+    if user.referral_credited or not user.referred_by_id:
+        return False
+    if not await referral_requirement_met(db, bot, user):
+        return False
+    referrer = db.query(User).filter_by(id=user.referred_by_id).first()
+    if not referrer:
+        user.referral_credited = True
+        db.commit()
+        return False
+    ref_pts = int(get_setting(db, "referral_points", "25"))
+    referrer.points += ref_pts
+    user.referral_credited = True
+    db.commit()
+    db.refresh(user)
+    return True
 
 
 def get_or_create_user(
@@ -35,12 +63,14 @@ def get_or_create_user(
         referrer = db.query(User).filter_by(telegram_id=referrer_telegram_id).first()
         if referrer:
             user.referred_by_id = referrer.id
-            ref_pts = int(get_setting(db, "referral_points", "25"))
-            referrer.points += ref_pts
     db.commit()
     db.refresh(user)
     return user, created
 
 
 def referral_count(db: Session, user: User) -> int:
-    return db.query(User).filter_by(referred_by_id=user.id).count()
+    return (
+        db.query(User)
+        .filter_by(referred_by_id=user.id, referral_credited=True)
+        .count()
+    )
