@@ -50,3 +50,9 @@ class AdminSetBoxCustomCost(StatesGroup):
 class AdminAddBoxGame(StatesGroup):
     title = State()
     cost = State()
+
+
+class AdminAddPromo(StatesGroup):
+    code = State()
+    points = State()
+    max_uses = State()

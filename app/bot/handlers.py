@@ -40,6 +40,7 @@ def _lang_btn_values() -> set[str]:
         "btn_language",
         "btn_points",
         "btn_topup",
+        "btn_promo",
     )
     return {t(lang, k) for lang in ("ar", "en") for k in keys}
 

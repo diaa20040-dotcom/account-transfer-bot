@@ -17,6 +17,8 @@ from app.bot.admin_keyboards import (
     countries_admin_keyboard,
     country_actions_keyboard,
     maintenance_admin_keyboard,
+    promo_actions_keyboard,
+    promos_admin_keyboard,
     runopen_status_keyboard,
     task_actions_keyboard,
     tasks_admin_keyboard,
@@ -25,6 +27,7 @@ from app.bot.admin_keyboards import (
 )
 from app.bot.admin_states import (
     AdminAddBoxGame,
+    AdminAddPromo,
     AdminAddPoints,
     AdminAddTask,
     AdminSetBoxCost,
@@ -41,6 +44,8 @@ from app.database import (
     BoxGame,
     BoxRequest,
     Country,
+    PromoCode,
+    PromoRedemption,
     RunOpenRequest,
     SessionLocal,
     Task,
@@ -50,6 +55,7 @@ from app.database import (
     set_setting,
 )
 from app.services.maintenance import KEY_MAINTENANCE, is_bot_maintenance
+from app.services.promo import normalize_promo_code
 from app.services.admin_access import is_admin, persist_admin
 from app.services.mandatory_sub import (
     KEY_CHAT_ID,
@@ -857,6 +863,184 @@ async def admin_restore_file(message: Message, state: FSMContext, bot: Bot) -> N
         f"✅ تمت الاستعادة.\nالمستخدمون: {users_n}\nالمهام: {tasks_n}\nالطلبات: {transfers_n}",
         reply_markup=admin_main_inline(),
     )
+
+
+@router.callback_query(F.data == "adm:promos")
+async def admin_promos(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        items = db.query(PromoCode).order_by(PromoCode.created_at.desc()).all()
+        await callback.message.edit_text(
+            "🎁 أكواد البرومو — اختر للتعديل:",
+            reply_markup=promos_admin_keyboard(items),
+        )
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:promo_new")
+async def admin_promo_new(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminAddPromo.code)
+    await callback.message.answer(
+        "أرسل **كود البرومو** (حروف وأرقام، بدون مسافات):\nمثال: `WELCOME50`",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminAddPromo.code, F.text)
+async def admin_promo_code(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    code = normalize_promo_code(message.text)
+    if not code:
+        await message.answer("كود غير صالح.")
+        return
+    db = SessionLocal()
+    try:
+        if db.query(PromoCode).filter_by(code=code).first():
+            await message.answer("هذا الكود موجود مسبقاً. اختر كوداً آخر.")
+            return
+    finally:
+        db.close()
+    await state.update_data(promo_code=code)
+    await state.set_state(AdminAddPromo.points)
+    await message.answer("كم **نقطة** يحصل عليها المستخدم؟ (رقم)", parse_mode="Markdown")
+
+
+@router.message(AdminAddPromo.points, F.text)
+async def admin_promo_points(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        points = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if points <= 0:
+        await message.answer("استخدم رقمًا موجبًا.")
+        return
+    await state.update_data(promo_points=points)
+    await state.set_state(AdminAddPromo.max_uses)
+    await message.answer(
+        "أقصى عدد **استخدامات** للكود (0 = غير محدود):\nمثال: `100` أو `0`",
+        parse_mode="Markdown",
+    )
+
+
+@router.message(AdminAddPromo.max_uses, F.text)
+async def admin_promo_max_uses(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        max_uses = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if max_uses < 0:
+        await message.answer("استخدم 0 أو أكثر.")
+        return
+    data = await state.get_data()
+    db = SessionLocal()
+    try:
+        db.add(
+            PromoCode(
+                code=data["promo_code"],
+                points=data["promo_points"],
+                max_uses=max_uses,
+                used_count=0,
+                active=True,
+            )
+        )
+        db.commit()
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
+        await message.answer(
+            f"✅ تم إنشاء الكود `{data['promo_code']}` — **{data['promo_points']}** نقطة.",
+            parse_mode="Markdown",
+        )
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("adm:promo:"))
+async def admin_promo_detail(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    pid = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        p = db.query(PromoCode).filter_by(id=pid).first()
+        if not p:
+            await callback.answer("—", show_alert=True)
+            return
+        uses = f"{p.used_count}"
+        if p.max_uses > 0:
+            uses += f" / {p.max_uses}"
+        else:
+            uses += " / ∞"
+        exp = p.expires_at.isoformat() if p.expires_at else "—"
+        text = (
+            f"كود: `{p.code}`\n"
+            f"النقاط: {p.points}\n"
+            f"الاستخدامات: {uses}\n"
+            f"نشط: {'نعم' if p.active else 'لا'}\n"
+            f"ينتهي: {exp}"
+        )
+        await callback.message.edit_text(
+            text, reply_markup=promo_actions_keyboard(p.id, p.active), parse_mode="Markdown"
+        )
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:promo_toggle:"))
+async def admin_promo_toggle(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    pid = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        p = db.query(PromoCode).filter_by(id=pid).first()
+        if p:
+            p.active = not p.active
+            db.commit()
+            await callback.message.edit_reply_markup(
+                reply_markup=promo_actions_keyboard(p.id, p.active)
+            )
+    finally:
+        db.close()
+    await callback.answer("تم")
+
+
+@router.callback_query(F.data.startswith("adm:promo_del:"))
+async def admin_promo_del(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    pid = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        p = db.query(PromoCode).filter_by(id=pid).first()
+        if p:
+            db.query(PromoRedemption).filter_by(promo_id=p.id).delete()
+            db.delete(p)
+            db.commit()
+        items = db.query(PromoCode).order_by(PromoCode.created_at.desc()).all()
+        await callback.message.edit_text(
+            "🎁 أكواد البرومو:",
+            reply_markup=promos_admin_keyboard(items),
+        )
+    finally:
+        db.close()
+    await callback.answer("حُذف")
 
 
 def _box_label(req: BoxRequest) -> str:

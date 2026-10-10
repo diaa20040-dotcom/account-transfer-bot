@@ -4,16 +4,30 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from app.database import AppSetting, Task, TransferRequest, User
+from app.database import (
+    engine,
+    AppSetting,
+    BoxGame,
+    PromoCode,
+    PromoRedemption,
+    Task,
+    TransferRequest,
+    User,
+)
 
 RUNTIME_SNAPSHOT = Path(__file__).resolve().parents[2] / "data" / "runtime_snapshot.json"
 BUNDLED_SEED = Path(__file__).resolve().parents[2] / "data" / "startup_seed.json"
 
 
+def _table_exists(name: str) -> bool:
+    return name in inspect(engine).get_table_names()
+
+
 def build_backup_payload(db: Session) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "users": [
             {
                 "telegram_id": u.telegram_id,
@@ -51,6 +65,37 @@ def build_backup_payload(db: Session) -> dict[str, Any]:
             for tr in db.query(TransferRequest).join(User).all()
         ],
     }
+    if _table_exists("box_games"):
+        payload["box_games"] = [
+            {
+                "title": g.title,
+                "point_cost": g.point_cost,
+                "active": g.active,
+                "sort_order": g.sort_order,
+            }
+            for g in db.query(BoxGame).order_by(BoxGame.sort_order).all()
+        ]
+    if _table_exists("promo_codes"):
+        payload["promo_codes"] = [
+            {
+                "code": p.code,
+                "points": p.points,
+                "max_uses": p.max_uses,
+                "used_count": p.used_count,
+                "active": p.active,
+                "expires_at": p.expires_at.isoformat() if p.expires_at else None,
+            }
+            for p in db.query(PromoCode).all()
+        ]
+    if _table_exists("promo_redemptions"):
+        payload["promo_redemptions"] = [
+            {
+                "user_telegram_id": r.user.telegram_id,
+                "code": r.promo.code,
+            }
+            for r in db.query(PromoRedemption).all()
+        ]
+    return payload
 
 
 def backup_json_bytes(db: Session) -> bytes:
@@ -160,6 +205,53 @@ def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, in
                 )
             )
             transfers_n += 1
+
+    backup_box = payload.get("box_games") or []
+    if backup_box:
+        db.query(BoxGame).delete()
+        for row in backup_box:
+            db.add(
+                BoxGame(
+                    title=row["title"],
+                    point_cost=int(row.get("point_cost") or 50),
+                    active=bool(row.get("active", True)),
+                    sort_order=int(row.get("sort_order") or 0),
+                )
+            )
+
+    backup_promos = payload.get("promo_codes") or []
+    if backup_promos:
+        db.query(PromoRedemption).delete()
+        db.query(PromoCode).delete()
+        code_to_id: dict[str, int] = {}
+        for row in backup_promos:
+            from datetime import datetime
+
+            exp = row.get("expires_at")
+            expires_at = None
+            if exp:
+                try:
+                    expires_at = datetime.fromisoformat(exp.replace("Z", ""))
+                except ValueError:
+                    expires_at = None
+            promo = PromoCode(
+                code=str(row["code"]).upper(),
+                points=int(row.get("points") or 0),
+                max_uses=int(row.get("max_uses") or 0),
+                used_count=int(row.get("used_count") or 0),
+                active=bool(row.get("active", True)),
+                expires_at=expires_at,
+            )
+            db.add(promo)
+            db.flush()
+            code_to_id[promo.code] = promo.id
+        for row in payload.get("promo_redemptions") or []:
+            utid = int(row["user_telegram_id"])
+            code = str(row["code"]).upper()
+            user = db.query(User).filter_by(telegram_id=utid).first()
+            pid = code_to_id.get(code)
+            if user and pid:
+                db.add(PromoRedemption(user_id=user.id, promo_id=pid))
 
     db.commit()
     return users_n, tasks_n, transfers_n

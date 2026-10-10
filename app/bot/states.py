@@ -20,3 +20,7 @@ class BoxTaskStates(StatesGroup):
 class RunOpenStates(StatesGroup):
     entering_name = State()
     entering_password = State()
+
+
+class PromoStates(StatesGroup):
+    entering_code = State()

@@ -25,6 +25,10 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="⚙️ نقاط الإحالة", callback_data="adm:referral"),
                 InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0"),
             ],
+            [
+                InlineKeyboardButton(text="🎁 أكواد البرومو", callback_data="adm:promos"),
+                InlineKeyboardButton(text="➕ برومو جديد", callback_data="adm:promo_new"),
+            ],
             [InlineKeyboardButton(text="💎 إضافة نقاط لمستخدم", callback_data="adm:addpoints")],
             [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
             [
@@ -189,6 +193,46 @@ def box_game_actions_keyboard(game_id: int, active: bool) -> InlineKeyboardMarku
                 )
             ],
             [InlineKeyboardButton(text="◀️ الألعاب", callback_data="adm:boxgames")],
+        ]
+    )
+
+
+def promos_admin_keyboard(promos: list) -> InlineKeyboardMarkup:
+    rows = []
+    for p in promos:
+        st = "✅" if p.active else "⛔"
+        uses = f"{p.used_count}"
+        if p.max_uses > 0:
+            uses += f"/{p.max_uses}"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{st} {p.code} +{p.points} ({uses})",
+                    callback_data=f"adm:promo:{p.id}",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(text="➕ برومو", callback_data="adm:promo_new"),
+            InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu"),
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def promo_actions_keyboard(promo_id: int, active: bool) -> InlineKeyboardMarkup:
+    toggle = "إيقاف" if active else "تفعيل"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"{'⛔' if active else '✅'} {toggle}",
+                    callback_data=f"adm:promo_toggle:{promo_id}",
+                ),
+                InlineKeyboardButton(text="🗑 حذف", callback_data=f"adm:promo_del:{promo_id}"),
+            ],
+            [InlineKeyboardButton(text="◀️ البرومو", callback_data="adm:promos")],
         ]
     )
 

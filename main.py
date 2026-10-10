@@ -14,6 +14,7 @@ from app.bot.box_handlers import router as box_router
 from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
 from app.bot.payments_handlers import router as payments_router
+from app.bot.promo_handlers import router as promo_router
 from app.bot.run_open_handlers import router as run_open_router
 from app.bot.middlewares import (
     MaintenanceMiddleware,
@@ -43,6 +44,7 @@ def build_dispatcher() -> Dispatcher:
     dp.include_router(payments_router)
     dp.include_router(box_router)
     dp.include_router(run_open_router)
+    dp.include_router(promo_router)
     dp.include_router(user_router)
     return dp
 

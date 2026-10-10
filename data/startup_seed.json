@@ -374,7 +374,10 @@
     "persisted_admin_ids": "8823377492",
     "mandatory_sub_invite_link": "https://t.me/Minexaa",
     "mandatory_sub_chat_id": "@Minexaa",
-    "mandatory_sub_enabled": "1"
+    "mandatory_sub_enabled": "1",
+    "bot_maintenance_enabled": "0",
+    "run_open_stars": "10",
+    "box_custom_point_cost": "50"
   },
   "tasks": [
     {
@@ -409,5 +412,111 @@
       "account_password": "QQQQwwww#4",
       "status": "pending"
     }
-  ]
+  ],
+  "box_games": [
+    {
+      "title": "8ball pool (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 1
+    },
+    {
+      "title": "Angry birds 2 (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 2
+    },
+    {
+      "title": "Best Fiends(50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 3
+    },
+    {
+      "title": "Dice dreams ™(50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 4
+    },
+    {
+      "title": "Disney Solitair",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 5
+    },
+    {
+      "title": "Domino dreams™ (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 6
+    },
+    {
+      "title": "Farm heroes saga",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 7
+    },
+    {
+      "title": "Free Fire",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 8
+    },
+    {
+      "title": "Fruit ninja (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 9
+    },
+    {
+      "title": "Hey day(All)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 10
+    },
+    {
+      "title": "Lords mobile (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 11
+    },
+    {
+      "title": "Mobile legends (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 12
+    },
+    {
+      "title": "Mobile Legends.US",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 13
+    },
+    {
+      "title": "Summoners War (50)",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 14
+    },
+    {
+      "title": "War machines |50|",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 15
+    },
+    {
+      "title": "Yalla Ludo",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 16
+    },
+    {
+      "title": "Zenless Zone Zero {50}",
+      "point_cost": 50,
+      "active": true,
+      "sort_order": 17
+    }
+  ],
+  "promo_codes": [],
+  "promo_redemptions": []
 }

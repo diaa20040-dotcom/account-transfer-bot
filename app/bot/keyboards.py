@@ -17,6 +17,7 @@ def main_menu(lang: str, is_admin: bool = False) -> ReplyKeyboardMarkup:
             KeyboardButton(text=t(lang, "btn_points")),
             KeyboardButton(text=t(lang, "btn_topup")),
         ],
+        [KeyboardButton(text=t(lang, "btn_promo"))],
         [KeyboardButton(text=t(lang, "btn_language"))],
     ]
     if is_admin:
