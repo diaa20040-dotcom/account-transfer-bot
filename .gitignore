@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .venv/
 data/*.db
+data/runtime_snapshot.json
 *.log

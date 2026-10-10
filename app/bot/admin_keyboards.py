@@ -35,6 +35,12 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="📥 نسخة احتياطية", callback_data="adm:backup"),
                 InlineKeyboardButton(text="📤 استعادة نسخة", callback_data="adm:restore"),
             ],
+            [
+                InlineKeyboardButton(
+                    text="♻️ استعادة من GitHub",
+                    callback_data="adm:reload_seed",
+                )
+            ],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="adm:close")],
         ]
     )

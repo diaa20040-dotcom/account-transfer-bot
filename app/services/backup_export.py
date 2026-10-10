@@ -111,14 +111,34 @@ def write_runtime_snapshot(db: Session) -> None:
     )
 
 
+def _read_json_file(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def load_seed_payload() -> dict[str, Any] | None:
-    for path in (RUNTIME_SNAPSHOT, BUNDLED_SEED):
-        if path.is_file():
-            try:
-                return json.loads(path.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-    return None
+    """Pick the richest backup: bundled seed vs local runtime snapshot."""
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for path in (BUNDLED_SEED, RUNTIME_SNAPSHOT):
+        data = _read_json_file(path)
+        if not data:
+            continue
+        users = data.get("users") or []
+        total_pts = sum(int(u.get("points") or 0) for u in users)
+        score = len(users) * 1000 + total_pts
+        candidates.append((score, data))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1]
+
+
+def load_bundled_seed_payload() -> dict[str, Any] | None:
+    return _read_json_file(BUNDLED_SEED)
 
 
 def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, int, int]:

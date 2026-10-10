@@ -802,6 +802,32 @@ async def admin_users(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "adm:reload_seed")
+async def admin_reload_seed(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    db = SessionLocal()
+    try:
+        from app.services.startup_seed import force_restore_bundled_seed, persist_runtime_snapshot
+
+        result = force_restore_bundled_seed(db)
+        if result is None:
+            await callback.answer("لا توجد نسخة startup_seed على السيرفر", show_alert=True)
+            return
+        users_n, tasks_n, transfers_n = result
+        persist_runtime_snapshot(db)
+        await callback.message.answer(
+            f"♻️ تمت الاستعادة من نسخة GitHub (`startup_seed.json`).\n"
+            f"المستخدمون: {users_n}\nالمهام: {tasks_n}\nطلبات التحويل: {transfers_n}\n\n"
+            "إذا النقاط ما رجعت لبعض الناس، اطلب منهم يضغطوا /start مرة.",
+            parse_mode="Markdown",
+        )
+    finally:
+        db.close()
+    await callback.answer("تمت الاستعادة")
+
+
 @router.callback_query(F.data == "adm:backup")
 async def admin_backup(callback: CallbackQuery) -> None:
     if not _admin_only_callback(callback):
