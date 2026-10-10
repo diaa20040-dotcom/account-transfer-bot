@@ -80,7 +80,7 @@ TEXTS = {
         "task_fail": "❌ Subscription not found. Join the channel/group and try again.",
         "task_already": "You already completed this task.",
         "no_tasks": "No tasks available.",
-        "referral_info": "Your referral link:\n{link}\n\nYou earn {points} points **after they join the required channel** and tap «Verify subscription».\n✅ Completed: {count}\n⏳ Pending subscription: {pending}",
+        "referral_info": "Your referral link:\n{link}\n\nYou earn {points} points after they join the required channel and tap Verify subscription.\n✅ Completed: {count}\n⏳ Pending subscription: {pending}",
         "referral_earned": "🎉 Referral completed! You earned {points} points.",
         "points_info": "Balance: {points} points",
         "back": "◀️ Back",

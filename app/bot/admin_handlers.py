@@ -39,8 +39,6 @@ from app.services.mandatory_sub import (
 from app.services.backup_export import backup_json_bytes, import_backup_payload
 from app.services.user_notify import notify_transfer_status, send_admin_message_to_user
 from app.services.users import get_or_create_user
-import json
-from datetime import datetime
 
 router = Router()
 
@@ -827,11 +825,14 @@ async def admin_restore_file(message: Message, state: FSMContext, bot: Bot) -> N
         return
     db = SessionLocal()
     try:
-        users_n, tasks_n = import_backup_payload(db, payload)
+        users_n, tasks_n, transfers_n = import_backup_payload(db, payload)
+        from app.services.startup_seed import persist_runtime_snapshot
+
+        persist_runtime_snapshot(db)
     finally:
         db.close()
     await state.clear()
     await message.answer(
-        f"✅ تمت الاستعادة.\nالمستخدمون: {users_n}\nالمهام: {tasks_n}",
+        f"✅ تمت الاستعادة.\nالمستخدمون: {users_n}\nالمهام: {tasks_n}\nالطلبات: {transfers_n}",
         reply_markup=admin_main_inline(),
     )

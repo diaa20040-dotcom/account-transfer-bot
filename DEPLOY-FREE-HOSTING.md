@@ -39,7 +39,19 @@
 
 إذا ظهر **Deployed** لكن البوت لا يرد: من Render → الخدمة → **Manual Deploy** → **Clear build cache & deploy**، ثم راقب **Logs** لسطر `Webhook mode:`.
 
-**قاعدة البيانات:** `sqlite` على Render قد **تُمسح** عند إعادة النشر على المجاني. للإنتاج استخدم لاحقاً Postgres مجاني (Neon) وغيّر `DATABASE_URL`.
+**قاعدة البيانات (مهم):** على Render المجاني ملف SQLite **يُمسح مع كل Deploy** — الرصيد والطلبات تروح.
+
+### الحل الدائم — PostgreSQL مجاني (Neon) ⭐
+
+1. سجّل على [neon.tech](https://neon.tech) (مجاني).
+2. أنشئ مشروع → انسخ **Connection string** (مثل `postgresql://user:pass@.../neondb?sslmode=require`).
+3. في Render → الخدمة → **Environment** → أضف:
+   - `DATABASE_URL` = نفس الرابط (يبدأ بـ `postgresql://`)
+4. **Deploy latest** مرة واحدة.
+
+البوت يدعم PostgreSQL تلقائياً — بعدها النشر ما يمسح البيانات.
+
+**بدون Neon:** قبل كل Deploy: `/admin` → **📥 نسخة احتياطية** — وبعد النشر **📤 استعادة نسخة**.
 
 ---
 

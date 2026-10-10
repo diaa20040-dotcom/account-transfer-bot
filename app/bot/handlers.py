@@ -366,6 +366,9 @@ async def got_password(message: Message, state: FSMContext, bot: Bot) -> None:
         )
         db.add(req)
         db.commit()
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
         db.refresh(req)
 
         cname = country.name_ar if lang == "ar" else country.name_en

@@ -1,69 +1,61 @@
-"""Restore users, settings, and tasks from data/startup_seed.json on empty / fresh hosts."""
+"""Restore bundled / runtime snapshots on fresh Render deploys."""
 
-import json
 import logging
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.database import AppSetting, Task, User
+from app.database import TransferRequest, User
+from app.services.backup_export import import_backup_payload, load_seed_payload, write_runtime_snapshot
 
 logger = logging.getLogger(__name__)
 
-SEED_PATH = Path(__file__).resolve().parents[2] / "data" / "startup_seed.json"
+
+def _needs_full_restore(db: Session) -> bool:
+    users = db.query(User).count()
+    if users == 0:
+        return True
+    transfers = db.query(TransferRequest).count()
+    if transfers == 0 and users <= 3:
+        max_pts = max((u.points for u in db.query(User).all()), default=0)
+        if max_pts == 0:
+            return True
+    return False
 
 
 def apply_startup_seed(db: Session) -> None:
-    if not SEED_PATH.is_file():
+    payload = load_seed_payload()
+    if not payload:
         return
-    try:
-        payload = json.loads(SEED_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        logger.exception("Could not read startup seed")
+    if _needs_full_restore(db):
+        users_n, tasks_n, transfers_n = import_backup_payload(db, payload)
+        logger.info(
+            "Full restore: %s users, %s tasks, %s transfers",
+            users_n,
+            tasks_n,
+            transfers_n,
+        )
         return
 
     for row in payload.get("users") or []:
         tid = int(row["telegram_id"])
         pts = int(row.get("points") or 0)
-        lang = row.get("language") or "ar"
-        username = row.get("username")
         user = db.query(User).filter_by(telegram_id=tid).first()
         if user is None:
             db.add(
                 User(
                     telegram_id=tid,
                     points=pts,
-                    language=lang,
-                    username=username,
+                    language=row.get("language") or "ar",
+                    username=row.get("username"),
                 )
             )
         elif user.points == 0 and pts > 0:
             user.points = pts
-            if username and not user.username:
-                user.username = username
-
-    for key, value in (payload.get("settings") or {}).items():
-        if key == "persisted_admin_ids":
-            continue
-        existing = db.query(AppSetting).filter_by(key=key).first()
-        if existing is None:
-            db.add(AppSetting(key=key, value=str(value)))
-        elif not (existing.value or "").strip():
-            existing.value = str(value)
-
-    if db.query(Task).count() == 0:
-        for row in payload.get("tasks") or []:
-            db.add(
-                Task(
-                    title_ar=row["title_ar"],
-                    title_en=row["title_en"],
-                    chat_id=row["chat_id"],
-                    invite_link=row.get("invite_link"),
-                    reward_points=int(row.get("reward_points") or 10),
-                    active=bool(row.get("active", True)),
-                    sort_order=int(row.get("sort_order") or 0),
-                )
-            )
-
     db.commit()
-    logger.info("Startup seed applied from %s", SEED_PATH.name)
+
+
+def persist_runtime_snapshot(db: Session) -> None:
+    try:
+        write_runtime_snapshot(db)
+    except Exception:
+        logger.exception("Could not write runtime snapshot")

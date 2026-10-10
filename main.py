@@ -174,6 +174,14 @@ async def main() -> None:
                 await polling_task
             except asyncio.CancelledError:
                 pass
+        from app.database import SessionLocal
+        from app.services.startup_seed import persist_runtime_snapshot
+
+        snap_db = SessionLocal()
+        try:
+            persist_runtime_snapshot(snap_db)
+        finally:
+            snap_db.close()
         await bot.session.close()
 
     app = create_http_app(bot, dp, lifespan)

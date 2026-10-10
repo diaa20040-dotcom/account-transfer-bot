@@ -160,6 +160,9 @@ async def successful_payment(message: Message) -> None:
             return
         user.points += points
         db.commit()
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
         lang = user.language
         await message.answer(
             t(lang, "topup_success", points=points, balance=user.points),
