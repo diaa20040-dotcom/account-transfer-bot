@@ -39,6 +39,10 @@ class AdminSetBoxCost(StatesGroup):
     waiting_cost = State()
 
 
+class AdminSetAllBoxCost(StatesGroup):
+    waiting_cost = State()
+
+
 class AdminSetRunOpenStars(StatesGroup):
     waiting_stars = State()
 

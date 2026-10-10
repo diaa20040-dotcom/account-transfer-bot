@@ -13,6 +13,7 @@ from app.bot.admin_keyboards import (
     admin_main_inline,
     box_game_actions_keyboard,
     box_games_admin_keyboard,
+    box_pricing_admin_keyboard,
     box_status_keyboard,
     countries_admin_keyboard,
     country_actions_keyboard,
@@ -30,6 +31,7 @@ from app.bot.admin_states import (
     AdminAddPromo,
     AdminAddPoints,
     AdminAddTask,
+    AdminSetAllBoxCost,
     AdminSetBoxCost,
     AdminSetBoxCustomCost,
     AdminSetCountryCost,
@@ -820,7 +822,7 @@ async def admin_reload_seed(callback: CallbackQuery) -> None:
         await callback.message.answer(
             f"♻️ تمت الاستعادة من نسخة GitHub (`startup_seed.json`).\n"
             f"المستخدمون: {users_n}\nالمهام: {tasks_n}\nطلبات التحويل: {transfers_n}\n\n"
-            "إذا النقاط ما رجعت لبعض الناس، اطلب منهم يضغطوا /start مرة.",
+            "⚠️ هذه نسخة **قديمة** من الملف على GitHub — استخدمها فقط إذا فقدت البيانات عمداً.",
             parse_mode="Markdown",
         )
     finally:
@@ -1275,6 +1277,73 @@ async def admin_runopen_status(callback: CallbackQuery) -> None:
             await callback.answer("غير موجود", show_alert=True)
     finally:
         db.close()
+
+
+@router.callback_query(F.data == "adm:box_pricing")
+async def admin_box_pricing(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        games = db.query(BoxGame).filter_by(active=True).all()
+        custom = get_setting(db, "box_custom_point_cost", "50")
+        if games:
+            sample = games[0].point_cost
+            same = all(g.point_cost == sample for g in games)
+            price_hint = f"{sample} نقطة لكل الألعاب" if same else "أسعار مختلفة لكل لعبة"
+        else:
+            price_hint = "لا ألعاب بعد"
+    finally:
+        db.close()
+    await callback.message.edit_text(
+        f"💰 **أسعار مهام الصناديق**\n\n"
+        f"الألعاب المفعّلة: {len(games) if games else 0}\n"
+        f"الحالة: {price_hint}\n"
+        f"طلب صندوق جديد: **{custom}** نقطة\n\n"
+        "اختر ما تريد تعديله:",
+        reply_markup=box_pricing_admin_keyboard(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:box_set_all_cost")
+async def admin_box_set_all_cost(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminSetAllBoxCost.waiting_cost)
+    await callback.message.answer(
+        "أرسل **عدد النقاط** الجديد — سيُطبَّق على **كل** ألعاب الصناديق:",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminSetAllBoxCost.waiting_cost, F.text)
+async def admin_box_set_all_cost_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        cost = int(message.text.strip())
+    except ValueError:
+        await message.answer("أرسل رقمًا فقط.")
+        return
+    if cost < 0:
+        await message.answer("استخدم 0 أو أكثر.")
+        return
+    db = SessionLocal()
+    try:
+        games = db.query(BoxGame).all()
+        for g in games:
+            g.point_cost = cost
+        db.commit()
+        await message.answer(
+            f"✅ تم تعيين سعر **{cost}** نقطة لـ {len(games)} لعبة/صندوق.",
+            parse_mode="Markdown",
+        )
+    finally:
+        db.close()
+    await state.clear()
 
 
 @router.callback_query(F.data == "adm:boxgames")

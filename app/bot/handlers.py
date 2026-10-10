@@ -20,7 +20,6 @@ from app.database import (
 )
 from app.i18n import t
 from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
-from app.services.startup_seed import restore_user_points_from_seed
 from app.services.users import (
     get_or_create_user,
     referral_count,
@@ -70,9 +69,6 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot) -> None:
         admin = is_admin(message.from_user.id, message.from_user.username)
         if admin:
             persist_admin(db, message.from_user.id)
-        if user.points == 0:
-            restore_user_points_from_seed(db, message.from_user.id)
-            db.refresh(user)
         lang = user.language
         name = message.from_user.first_name or "User"
         msub = get_mandatory_sub_config(db)
@@ -138,9 +134,6 @@ async def show_points(message: Message) -> None:
         user, _ = get_or_create_user(
             db, message.from_user.id, message.from_user.username, message.from_user.first_name
         )
-        if user.points == 0:
-            restore_user_points_from_seed(db, message.from_user.id)
-            db.refresh(user)
         await message.answer(t(user.language, "points_info", points=user.points))
     finally:
         db.close()

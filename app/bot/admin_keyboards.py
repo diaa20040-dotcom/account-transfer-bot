@@ -13,9 +13,10 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🔓 فتح التشغيل", callback_data="adm:runopen:0"),
             ],
             [
-                InlineKeyboardButton(text="🎮 ألعاب الصناديق", callback_data="adm:boxgames"),
+                InlineKeyboardButton(text="💰 أسعار الصناديق", callback_data="adm:box_pricing"),
                 InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),
             ],
+            [InlineKeyboardButton(text="🎮 قائمة ألعاب الصناديق", callback_data="adm:boxgames")],
             [InlineKeyboardButton(text="🌍 الدول والنقاط", callback_data="adm:countries")],
             [
                 InlineKeyboardButton(text="📋 المهام", callback_data="adm:tasks"),
@@ -37,7 +38,7 @@ def admin_main_inline() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="♻️ استعادة من GitHub",
+                    text="♻️ استعادة نسخة GitHub (قديمة)",
                     callback_data="adm:reload_seed",
                 )
             ],
@@ -161,6 +162,32 @@ def runopen_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:rost:{req_id}:rejected"),
             ],
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+        ]
+    )
+
+
+def box_pricing_admin_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✏️ سعر كل الألعاب (مرة واحدة)",
+                    callback_data="adm:box_set_all_cost",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🎮 تعديل سعر كل لعبة",
+                    callback_data="adm:boxgames",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📩 سعر «طلب صندوق جديد»",
+                    callback_data="adm:box_custom_cost",
+                )
+            ],
+            [InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")],
         ]
     )
 
