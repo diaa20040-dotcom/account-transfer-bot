@@ -21,6 +21,16 @@ class Settings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("ENABLE_WEB_ADMIN", "WEB_ADMIN_ENABLED"),
     )
+    public_url: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "PUBLIC_URL",
+            "RENDER_EXTERNAL_URL",
+            "WEBHOOK_BASE_URL",
+        ),
+    )
+    webhook_path: str = Field(default="/telegram/webhook")
+    webhook_secret: str = Field(default="", validation_alias=AliasChoices("WEBHOOK_SECRET",))
 
     @property
     def admin_ids(self) -> list[int]:
