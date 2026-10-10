@@ -79,11 +79,42 @@ async def run_polling_with_restart(bot: Bot, dp: Dispatcher) -> None:
             delay = min(delay * 2, 60)
 
 
+async def ensure_telegram_webhook(bot: Bot, dp: Dispatcher) -> None:
+    if not use_webhook_mode():
+        return
+    url = webhook_url()
+    try:
+        info = await bot.get_webhook_info()
+        if info.url != url:
+            await bot.set_webhook(
+                url,
+                secret_token=settings.webhook_secret or None,
+                allowed_updates=dp.resolve_used_update_types(),
+                drop_pending_updates=False,
+            )
+            logger.info("Webhook re-registered at %s", url)
+    except Exception:
+        logger.exception("ensure_telegram_webhook failed")
+
+
 def register_routes(app: FastAPI, bot: Bot, dp: Dispatcher) -> None:
     @app.get("/health")
     async def health():
+        await ensure_telegram_webhook(bot, dp)
         mode = "webhook" if use_webhook_mode() else "polling"
-        return {"status": "ok", "bot_mode": mode, "polling_alive": _bot_polling_alive}
+        hooked = False
+        if use_webhook_mode():
+            try:
+                info = await bot.get_webhook_info()
+                hooked = info.url == webhook_url()
+            except Exception:
+                hooked = False
+        return {
+            "status": "ok",
+            "bot_mode": mode,
+            "polling_alive": _bot_polling_alive,
+            "webhook_ok": hooked,
+        }
 
     if use_webhook_mode():
 
@@ -128,24 +159,8 @@ async def main() -> None:
         set_admin_ids(await resolve_admin_ids(bot))
 
         if use_webhook_mode():
-            url = webhook_url()
-            secret = settings.webhook_secret or None
-            for attempt in range(1, 6):
-                try:
-                    await bot.set_webhook(
-                        url,
-                        secret_token=secret,
-                        allowed_updates=dp.resolve_used_update_types(),
-                        drop_pending_updates=False,
-                    )
-                    info = await bot.get_webhook_info()
-                    if info.url == url:
-                        logger.info("Webhook mode: %s", url)
-                        break
-                    logger.warning("Webhook URL mismatch after set (attempt %s)", attempt)
-                except Exception:
-                    logger.exception("set_webhook failed (attempt %s)", attempt)
-                await asyncio.sleep(min(attempt * 2, 10))
+            await ensure_telegram_webhook(bot, dp)
+            logger.info("Webhook mode: %s", webhook_url())
         else:
             polling_task = asyncio.create_task(run_polling_with_restart(bot, dp))
             logger.info("Polling mode (set RENDER_EXTERNAL_URL on cloud hosts)")
