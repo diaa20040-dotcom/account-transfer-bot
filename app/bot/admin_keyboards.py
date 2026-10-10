@@ -8,6 +8,14 @@ def admin_main_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📥 طلبات التحويل", callback_data="adm:transfers:0")],
+            [
+                InlineKeyboardButton(text="📦 طلبات الصناديق", callback_data="adm:boxes:0"),
+                InlineKeyboardButton(text="🔓 فتح التشغيل", callback_data="adm:runopen:0"),
+            ],
+            [
+                InlineKeyboardButton(text="🎮 ألعاب الصناديق", callback_data="adm:boxgames"),
+                InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),
+            ],
             [InlineKeyboardButton(text="🌍 الدول والنقاط", callback_data="adm:countries")],
             [
                 InlineKeyboardButton(text="📋 المهام", callback_data="adm:tasks"),
@@ -111,6 +119,89 @@ def mandatory_sub_admin_keyboard(enabled: bool) -> InlineKeyboardMarkup:
                 )
             ],
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+        ]
+    )
+
+
+def box_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:bst:{req_id}:pending"),
+                InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:bst:{req_id}:processing"),
+            ],
+            [
+                InlineKeyboardButton(text="✅ done", callback_data=f"adm:bst:{req_id}:done"),
+                InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:bst:{req_id}:rejected"),
+            ],
+            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+        ]
+    )
+
+
+def runopen_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:rost:{req_id}:pending"),
+                InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:rost:{req_id}:processing"),
+            ],
+            [
+                InlineKeyboardButton(text="✅ done", callback_data=f"adm:rost:{req_id}:done"),
+                InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:rost:{req_id}:rejected"),
+            ],
+            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+        ]
+    )
+
+
+def box_games_admin_keyboard(games: list) -> InlineKeyboardMarkup:
+    rows = []
+    for g in games:
+        st = "✅" if g.active else "⛔"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{st} {g.title} ({g.point_cost})",
+                    callback_data=f"adm:boxg:{g.id}",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(text="➕ لعبة", callback_data="adm:boxg_new"),
+            InlineKeyboardButton(text="✏️ طلب مخصص", callback_data="adm:box_custom_cost"),
+        ]
+    )
+    rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def box_game_actions_keyboard(game_id: int, active: bool) -> InlineKeyboardMarkup:
+    toggle = "إيقاف" if active else "تفعيل"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ تغيير النقاط", callback_data=f"adm:boxgcost:{game_id}")],
+            [
+                InlineKeyboardButton(
+                    text=f"{'⛔' if active else '✅'} {toggle}",
+                    callback_data=f"adm:boxgtoggle:{game_id}",
+                )
+            ],
+            [InlineKeyboardButton(text="◀️ الألعاب", callback_data="adm:boxgames")],
+        ]
+    )
+
+
+def maintenance_admin_keyboard(enabled: bool) -> InlineKeyboardMarkup:
+    label = "▶️ تشغيل البوت" if enabled else "⛔ إيقاف البوت للمستخدمين"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=label, callback_data="adm:maintenance_toggle")],
+            [
+                InlineKeyboardButton(text="⭐ نجوم فتح التشغيل", callback_data="adm:runopen_stars"),
+            ],
+            [InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")],
         ]
     )
 

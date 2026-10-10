@@ -96,6 +96,46 @@ class TaskCompletion(Base):
     completed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class BoxGame(Base):
+    __tablename__ = "box_games"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(120))
+    point_cost: Mapped[int] = mapped_column(Integer, default=50)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class BoxRequest(Base):
+    __tablename__ = "box_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    box_game_id: Mapped[int | None] = mapped_column(ForeignKey("box_games.id"), nullable=True)
+    custom_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    account_name: Mapped[str] = mapped_column(String(255))
+    account_password: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[User] = relationship()
+    box_game: Mapped["BoxGame | None"] = relationship()
+
+
+class RunOpenRequest(Base):
+    __tablename__ = "run_open_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    account_name: Mapped[str] = mapped_column(String(255))
+    account_password: Mapped[str] = mapped_column(Text)
+    stars_paid: Mapped[int] = mapped_column(Integer, default=10)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[User] = relationship()
+
+
 class AppSetting(Base):
     __tablename__ = "app_settings"
 
@@ -107,6 +147,34 @@ DEFAULT_COUNTRIES = [
     ("امريكا", "America", 100, 1),
     ("ياباني", "Japan", 100, 2),
 ]
+
+DEFAULT_BOX_GAMES = [
+    ("8ball pool (50)", 50, 1),
+    ("Angry birds 2 (50)", 50, 2),
+    ("Best Fiends(50)", 50, 3),
+    ("Dice dreams ™(50)", 50, 4),
+    ("Disney Solitair", 50, 5),
+    ("Domino dreams™ (50)", 50, 6),
+    ("Farm heroes saga", 50, 7),
+    ("Free Fire", 50, 8),
+    ("Fruit ninja (50)", 50, 9),
+    ("Hey day(All)", 50, 10),
+    ("Lords mobile (50)", 50, 11),
+    ("Mobile legends (50)", 50, 12),
+    ("Mobile Legends.US", 50, 13),
+    ("Summoners War (50)", 50, 14),
+    ("War machines |50|", 50, 15),
+    ("Yalla Ludo", 50, 16),
+    ("Zenless Zone Zero {50}", 50, 17),
+]
+
+
+def seed_default_box_games(db) -> None:
+    if db.query(BoxGame).count() > 0:
+        return
+    for title, cost, order in DEFAULT_BOX_GAMES:
+        db.add(BoxGame(title=title, point_cost=cost, sort_order=order, active=True))
+    db.commit()
 
 
 def sync_default_countries(db) -> None:
@@ -143,6 +211,13 @@ def init_db() -> None:
             sync_default_countries(db)
         if db.query(AppSetting).filter_by(key="referral_points").first() is None:
             db.add(AppSetting(key="referral_points", value="25"))
+        if db.query(AppSetting).filter_by(key="bot_maintenance_enabled").first() is None:
+            db.add(AppSetting(key="bot_maintenance_enabled", value="0"))
+        if db.query(AppSetting).filter_by(key="run_open_stars").first() is None:
+            db.add(AppSetting(key="run_open_stars", value="10"))
+        if db.query(AppSetting).filter_by(key="box_custom_point_cost").first() is None:
+            db.add(AppSetting(key="box_custom_point_cost", value="50"))
+        seed_default_box_games(db)
         db.commit()
         from app.services.admin_access import load_persisted_admins
         from app.services.bootstrap import bootstrap_admin_points

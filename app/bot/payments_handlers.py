@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
 from app.bot.stars_keyboards import topup_amounts_keyboard
-from app.bot.states import TopUpStates
+from app.bot.states import RunOpenStates, TopUpStates
 from app.database import SessionLocal, User
 from app.i18n import t
 from app.services.users import get_or_create_user
@@ -16,6 +16,22 @@ router = Router()
 
 _TOPUP_MAX = 10_000
 _TOPUP_MIN = 1
+
+
+def _parse_runopen_payload(payload: str) -> tuple[int, int] | None:
+    if not payload.startswith("runopen:"):
+        return None
+    parts = payload.split(":")
+    if len(parts) != 3:
+        return None
+    try:
+        user_id = int(parts[1])
+        stars = int(parts[2])
+    except ValueError:
+        return None
+    if stars < 1 or stars > _TOPUP_MAX:
+        return None
+    return user_id, stars
 
 
 def _parse_topup_payload(payload: str) -> tuple[int, int] | None:
@@ -123,14 +139,33 @@ async def topup_custom_amount(message: Message, state: FSMContext, bot: Bot) -> 
 
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery) -> None:
-    parsed = _parse_topup_payload(query.invoice_payload)
-    if not parsed:
+    payload = query.invoice_payload
+    parsed_topup = _parse_topup_payload(payload)
+    parsed_runopen = _parse_runopen_payload(payload)
+    if parsed_topup:
+        user_id, points = parsed_topup
+        if query.currency != "XTR" or query.total_amount != points:
+            await query.answer(ok=False, error_message="Amount mismatch.")
+            return
+    elif parsed_runopen:
+        user_id, stars = parsed_runopen
+        if query.currency != "XTR" or query.total_amount != stars:
+            await query.answer(ok=False, error_message="Amount mismatch.")
+            return
+        db = SessionLocal()
+        try:
+            from app.database import get_setting
+
+            expected = int(get_setting(db, "run_open_stars", "10"))
+            if stars != expected:
+                await query.answer(ok=False, error_message="Price changed.")
+                return
+        finally:
+            db.close()
+    else:
         await query.answer(ok=False, error_message="Invalid payment.")
         return
-    user_id, points = parsed
-    if query.currency != "XTR" or query.total_amount != points:
-        await query.answer(ok=False, error_message="Amount mismatch.")
-        return
+
     db = SessionLocal()
     try:
         if not db.query(User).filter_by(id=user_id, telegram_id=query.from_user.id).first():
@@ -142,8 +177,28 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
 
 
 @router.message(F.successful_payment)
-async def successful_payment(message: Message) -> None:
+async def successful_payment(message: Message, state: FSMContext) -> None:
     payment = message.successful_payment
+    parsed_runopen = _parse_runopen_payload(payment.invoice_payload)
+    if parsed_runopen:
+        user_id, stars = parsed_runopen
+        if payment.currency != "XTR" or payment.total_amount != stars:
+            logger.warning("Run-open payment mismatch for user %s", user_id)
+            return
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter_by(id=user_id, telegram_id=message.from_user.id).first()
+            if not user:
+                return
+            lang = user.language
+        finally:
+            db.close()
+        await state.clear()
+        await state.update_data(run_open_paid=True, stars_paid=stars)
+        await state.set_state(RunOpenStates.entering_name)
+        await message.answer(t(lang, "run_open_paid_enter_name", stars=stars))
+        return
+
     parsed = _parse_topup_payload(payment.invoice_payload)
     if not parsed:
         logger.warning("Unknown payment payload: %s", payment.invoice_payload)

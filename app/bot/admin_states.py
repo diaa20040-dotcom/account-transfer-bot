@@ -33,3 +33,20 @@ class AdminMessageUser(StatesGroup):
 
 class AdminRestoreBackup(StatesGroup):
     waiting_file = State()
+
+
+class AdminSetBoxCost(StatesGroup):
+    waiting_cost = State()
+
+
+class AdminSetRunOpenStars(StatesGroup):
+    waiting_stars = State()
+
+
+class AdminSetBoxCustomCost(StatesGroup):
+    waiting_cost = State()
+
+
+class AdminAddBoxGame(StatesGroup):
+    title = State()
+    cost = State()

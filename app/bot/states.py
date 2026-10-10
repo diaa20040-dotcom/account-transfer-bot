@@ -9,3 +9,14 @@ class TransferStates(StatesGroup):
 
 class TopUpStates(StatesGroup):
     amount = State()
+
+
+class BoxTaskStates(StatesGroup):
+    entering_name = State()
+    entering_password = State()
+    custom_game_name = State()
+
+
+class RunOpenStates(StatesGroup):
+    entering_name = State()
+    entering_password = State()

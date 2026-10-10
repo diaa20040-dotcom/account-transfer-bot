@@ -3,8 +3,9 @@ from typing import Any, Awaitable, Callable
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
-from app.database import SessionLocal
+from app.database import SessionLocal, User
 from app.services.admin_access import is_admin
+from app.services.maintenance import is_bot_maintenance
 from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
 from app.services.users import maybe_credit_referral
 from app.i18n import t
@@ -111,4 +112,44 @@ class MandatorySubMiddleware(BaseMiddleware):
             t(lang, "mandatory_sub_blocked"),
             reply_markup=mandatory_sub_keyboard(lang, invite_link),
         )
+        return None
+
+
+class MaintenanceMiddleware(BaseMiddleware):
+    """When maintenance is on, block non-admins (admins and Stars payments still work)."""
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        user_info = _user_from_event(event)
+        if user_info is None:
+            return await handler(event, data)
+
+        telegram_id, username = user_info
+        if is_admin(telegram_id, username):
+            return await handler(event, data)
+
+        if isinstance(event, Message) and event.successful_payment:
+            return await handler(event, data)
+
+        db = SessionLocal()
+        try:
+            if not is_bot_maintenance(db):
+                return await handler(event, data)
+            user = db.query(User).filter_by(telegram_id=telegram_id).first()
+            lang = user.language if user else "ar"
+        finally:
+            db.close()
+
+        if isinstance(event, CallbackQuery):
+            await event.answer(t(lang, "bot_maintenance"), show_alert=True)
+            return None
+
+        if isinstance(event, Message):
+            await event.answer(t(lang, "bot_maintenance"))
+            return None
+
         return None

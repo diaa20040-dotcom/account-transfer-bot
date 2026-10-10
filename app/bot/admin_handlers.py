@@ -11,24 +11,45 @@ from app.bot.admin_keyboards import (
     ADMIN_BTN_AR,
     ADMIN_BTN_EN,
     admin_main_inline,
+    box_game_actions_keyboard,
+    box_games_admin_keyboard,
+    box_status_keyboard,
     countries_admin_keyboard,
     country_actions_keyboard,
+    maintenance_admin_keyboard,
+    runopen_status_keyboard,
     task_actions_keyboard,
     tasks_admin_keyboard,
     transfer_status_keyboard,
     mandatory_sub_admin_keyboard,
 )
 from app.bot.admin_states import (
+    AdminAddBoxGame,
     AdminAddPoints,
     AdminAddTask,
+    AdminSetBoxCost,
+    AdminSetBoxCustomCost,
     AdminSetCountryCost,
     AdminSetReferral,
+    AdminSetRunOpenStars,
     AdminMandatorySub,
     AdminMessageUser,
     AdminRestoreBackup,
 )
 from app.bot.keyboards import main_menu
-from app.database import Country, SessionLocal, Task, TransferRequest, User, get_setting, set_setting
+from app.database import (
+    BoxGame,
+    BoxRequest,
+    Country,
+    RunOpenRequest,
+    SessionLocal,
+    Task,
+    TransferRequest,
+    User,
+    get_setting,
+    set_setting,
+)
+from app.services.maintenance import KEY_MAINTENANCE, is_bot_maintenance
 from app.services.admin_access import is_admin, persist_admin
 from app.services.mandatory_sub import (
     KEY_CHAT_ID,
@@ -836,3 +857,453 @@ async def admin_restore_file(message: Message, state: FSMContext, bot: Bot) -> N
         f"✅ تمت الاستعادة.\nالمستخدمون: {users_n}\nالمهام: {tasks_n}\nالطلبات: {transfers_n}",
         reply_markup=admin_main_inline(),
     )
+
+
+def _box_label(req: BoxRequest) -> str:
+    if req.custom_title:
+        return req.custom_title
+    if req.box_game:
+        return req.box_game.title
+    return "—"
+
+
+@router.callback_query(F.data.startswith("adm:boxes:"))
+async def admin_boxes(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    page = int(callback.data.split(":")[-1])
+    per_page = 5
+    db = SessionLocal()
+    try:
+        q = db.query(BoxRequest).order_by(desc(BoxRequest.created_at))
+        total = q.count()
+        items = q.offset(page * per_page).limit(per_page).all()
+        if not items:
+            text = "لا توجد طلبات صناديق."
+            kb = admin_main_inline()
+        else:
+            pages = max(1, (total - 1) // per_page + 1)
+            lines = [f"📦 طلبات الصناديق ({page + 1}/{pages})"]
+            for r in items:
+                lines.append(
+                    f"\n#{r.id} | {r.status}\n"
+                    f"👤 {r.user.telegram_id} @{r.user.username or '—'}\n"
+                    f"🎮 {_box_label(r)}\n"
+                    f"📧 {r.account_name}\n"
+                    f"🔑 {r.account_password}"
+                )
+            text = "\n".join(lines)
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:boxes:{page - 1}"))
+            if (page + 1) * per_page < total:
+                nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:boxes:{page + 1}"))
+            rows = [
+                [InlineKeyboardButton(text=f"⚙️ صندوق #{r.id}", callback_data=f"adm:boxreq:{r.id}")]
+                for r in items
+            ]
+            if nav:
+                rows.append(nav)
+            rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:boxreq:"))
+async def admin_box_detail(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    req_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        r = db.query(BoxRequest).filter_by(id=req_id).first()
+        if not r:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        text = (
+            f"صندوق #{r.id}\n"
+            f"الحالة: {r.status}\n"
+            f"المستخدم: {r.user.telegram_id} @{r.user.username or '—'}\n"
+            f"اللعبة: {_box_label(r)}\n"
+            f"الحساب: {r.account_name}\n"
+            f"كلمة المرور: {r.account_password}"
+        )
+        await callback.message.edit_text(text, reply_markup=box_status_keyboard(req_id))
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:bst:"))
+async def admin_box_status(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    _, _, req_id, status = callback.data.split(":", 3)
+    db = SessionLocal()
+    try:
+        r = db.query(BoxRequest).filter_by(id=int(req_id)).first()
+        if r:
+            r.status = status
+            db.commit()
+            await callback.answer(f"تم: {status}", show_alert=True)
+            text = (
+                f"صندوق #{r.id}\n"
+                f"الحالة: {r.status}\n"
+                f"المستخدم: {r.user.telegram_id}\n"
+                f"الحساب: {r.account_name}"
+            )
+            await callback.message.edit_text(text, reply_markup=box_status_keyboard(r.id))
+        else:
+            await callback.answer("غير موجود", show_alert=True)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("adm:runopen:"))
+async def admin_runopen_list(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    page = int(callback.data.split(":")[-1])
+    per_page = 5
+    db = SessionLocal()
+    try:
+        q = db.query(RunOpenRequest).order_by(desc(RunOpenRequest.created_at))
+        total = q.count()
+        items = q.offset(page * per_page).limit(per_page).all()
+        if not items:
+            text = "لا توجد طلبات فتح تشغيل."
+            kb = admin_main_inline()
+        else:
+            pages = max(1, (total - 1) // per_page + 1)
+            lines = [f"🔓 فتح التشغيل ({page + 1}/{pages})"]
+            for r in items:
+                lines.append(
+                    f"\n#{r.id} | {r.status}\n"
+                    f"👤 {r.user.telegram_id} @{r.user.username or '—'}\n"
+                    f"⭐ {r.stars_paid}\n"
+                    f"📧 {r.account_name}\n"
+                    f"🔑 {r.account_password}"
+                )
+            text = "\n".join(lines)
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:runopen:{page - 1}"))
+            if (page + 1) * per_page < total:
+                nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:runopen:{page + 1}"))
+            rows = [
+                [InlineKeyboardButton(text=f"⚙️ #{r.id}", callback_data=f"adm:roreq:{r.id}")]
+                for r in items
+            ]
+            if nav:
+                rows.append(nav)
+            rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:roreq:"))
+async def admin_runopen_detail(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    req_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        r = db.query(RunOpenRequest).filter_by(id=req_id).first()
+        if not r:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        text = (
+            f"فتح تشغيل #{r.id}\n"
+            f"الحالة: {r.status}\n"
+            f"المستخدم: {r.user.telegram_id} @{r.user.username or '—'}\n"
+            f"النجوم: {r.stars_paid}\n"
+            f"الحساب: {r.account_name}\n"
+            f"كلمة المرور: {r.account_password}"
+        )
+        await callback.message.edit_text(text, reply_markup=runopen_status_keyboard(req_id))
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:rost:"))
+async def admin_runopen_status(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    _, _, req_id, status = callback.data.split(":", 3)
+    db = SessionLocal()
+    try:
+        r = db.query(RunOpenRequest).filter_by(id=int(req_id)).first()
+        if r:
+            r.status = status
+            db.commit()
+            await callback.answer(f"تم: {status}", show_alert=True)
+            text = (
+                f"فتح تشغيل #{r.id}\n"
+                f"الحالة: {r.status}\n"
+                f"المستخدم: {r.user.telegram_id}\n"
+                f"الحساب: {r.account_name}"
+            )
+            await callback.message.edit_text(text, reply_markup=runopen_status_keyboard(r.id))
+        else:
+            await callback.answer("غير موجود", show_alert=True)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "adm:boxgames")
+async def admin_box_games(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        items = db.query(BoxGame).order_by(BoxGame.sort_order).all()
+        await callback.message.edit_text(
+            "🎮 ألعاب الصناديق — اختر للتعديل:",
+            reply_markup=box_games_admin_keyboard(items),
+        )
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:boxg:"))
+async def admin_box_game_detail(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    gid = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        g = db.query(BoxGame).filter_by(id=gid).first()
+        if not g:
+            await callback.answer("—", show_alert=True)
+            return
+        text = f"{g.title}\nالنقاط: {g.point_cost}\nنشط: {'نعم' if g.active else 'لا'}"
+        await callback.message.edit_text(text, reply_markup=box_game_actions_keyboard(g.id, g.active))
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:boxgtoggle:"))
+async def admin_box_game_toggle(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    gid = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        g = db.query(BoxGame).filter_by(id=gid).first()
+        if g:
+            g.active = not g.active
+            db.commit()
+            await callback.message.edit_reply_markup(
+                reply_markup=box_game_actions_keyboard(g.id, g.active)
+            )
+    finally:
+        db.close()
+    await callback.answer("تم")
+
+
+@router.callback_query(F.data.startswith("adm:boxgcost:"))
+async def admin_box_game_cost_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    gid = int(callback.data.split(":")[-1])
+    await state.set_state(AdminSetBoxCost.waiting_cost)
+    await state.update_data(box_game_id=gid)
+    await callback.message.answer("أرسل عدد النقاط الجديد لهذه اللعبة:")
+    await callback.answer()
+
+
+@router.message(AdminSetBoxCost.waiting_cost, F.text)
+async def admin_box_game_cost_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        cost = int(message.text.strip())
+    except ValueError:
+        await message.answer("أرسل رقمًا فقط.")
+        return
+    data = await state.get_data()
+    db = SessionLocal()
+    try:
+        g = db.query(BoxGame).filter_by(id=data["box_game_id"]).first()
+        if g:
+            g.point_cost = cost
+            db.commit()
+            await message.answer(f"✅ تم تحديث {g.title} إلى {cost} نقطة.")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data == "adm:boxg_new")
+async def admin_box_game_new(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminAddBoxGame.title)
+    await callback.message.answer("اسم اللعبة/الصندوق (كما يظهر للمستخدم):")
+    await callback.answer()
+
+
+@router.message(AdminAddBoxGame.title, F.text)
+async def admin_box_game_new_title(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    await state.update_data(title=message.text.strip())
+    await state.set_state(AdminAddBoxGame.cost)
+    await message.answer("عدد النقاط المطلوبة (رقم):")
+
+
+@router.message(AdminAddBoxGame.cost, F.text)
+async def admin_box_game_new_cost(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        cost = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    data = await state.get_data()
+    db = SessionLocal()
+    try:
+        max_order = db.query(BoxGame).count()
+        db.add(
+            BoxGame(
+                title=data["title"],
+                point_cost=cost,
+                sort_order=max_order + 1,
+                active=True,
+            )
+        )
+        db.commit()
+        await message.answer("✅ تمت إضافة اللعبة.")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data == "adm:box_custom_cost")
+async def admin_box_custom_cost(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        pts = get_setting(db, "box_custom_point_cost", "50")
+    finally:
+        db.close()
+    await state.set_state(AdminSetBoxCustomCost.waiting_cost)
+    await callback.message.answer(
+        f"نقاط «طلب صندوق جديد» الحالية: **{pts}**\nأرسل الرقم الجديد:",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminSetBoxCustomCost.waiting_cost, F.text)
+async def admin_box_custom_cost_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        cost = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    db = SessionLocal()
+    try:
+        set_setting(db, "box_custom_point_cost", str(cost))
+        await message.answer(f"✅ طلب الصندوق المخصص: {cost} نقطة.")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data == "adm:maintenance")
+async def admin_maintenance(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        on = is_bot_maintenance(db)
+        stars = get_setting(db, "run_open_stars", "10")
+    finally:
+        db.close()
+    status = "⛔ **متوقف** للمستخدمين" if on else "✅ **يعمل** للجميع"
+    await callback.message.edit_text(
+        f"حالة البوت: {status}\n\nنجوم فتح التشغيل: **{stars}** ⭐",
+        reply_markup=maintenance_admin_keyboard(on),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:maintenance_toggle")
+async def admin_maintenance_toggle(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        on = is_bot_maintenance(db)
+        set_setting(db, KEY_MAINTENANCE, "0" if on else "1")
+        on = is_bot_maintenance(db)
+        stars = get_setting(db, "run_open_stars", "10")
+    finally:
+        db.close()
+    status = "⛔ **متوقف** للمستخدمين" if on else "✅ **يعمل** للجميع"
+    await callback.message.edit_text(
+        f"حالة البوت: {status}\n\nنجوم فتح التشغيل: **{stars}** ⭐",
+        reply_markup=maintenance_admin_keyboard(on),
+        parse_mode="Markdown",
+    )
+    await callback.answer("تم التحديث")
+
+
+@router.callback_query(F.data == "adm:runopen_stars")
+async def admin_runopen_stars(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        stars = get_setting(db, "run_open_stars", "10")
+    finally:
+        db.close()
+    await state.set_state(AdminSetRunOpenStars.waiting_stars)
+    await callback.message.answer(f"نجوم فتح التشغيل الحالية: **{stars}**\nأرسل الرقم الجديد:", parse_mode="Markdown")
+    await callback.answer()
+
+
+@router.message(AdminSetRunOpenStars.waiting_stars, F.text)
+async def admin_runopen_stars_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        stars = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if stars < 1:
+        await message.answer("استخدم 1 أو أكثر.")
+        return
+    db = SessionLocal()
+    try:
+        set_setting(db, "run_open_stars", str(stars))
+        await message.answer(f"✅ فتح التشغيل: {stars} نجوم لكل استخدام.")
+    finally:
+        db.close()
+    await state.clear()

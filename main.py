@@ -10,10 +10,16 @@ from aiogram.types import Update
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from app.bot.admin_handlers import router as admin_router
+from app.bot.box_handlers import router as box_router
 from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
 from app.bot.payments_handlers import router as payments_router
-from app.bot.middlewares import MandatorySubMiddleware, PrivateChatsOnlyMiddleware
+from app.bot.run_open_handlers import router as run_open_router
+from app.bot.middlewares import (
+    MaintenanceMiddleware,
+    MandatorySubMiddleware,
+    PrivateChatsOnlyMiddleware,
+)
 from app.config import settings
 from app.database import init_db
 from app.services.admin_notify import set_admin_ids
@@ -30,9 +36,13 @@ def build_dispatcher() -> Dispatcher:
     dp.callback_query.middleware(PrivateChatsOnlyMiddleware())
     dp.message.middleware(MandatorySubMiddleware())
     dp.callback_query.middleware(MandatorySubMiddleware())
+    dp.message.middleware(MaintenanceMiddleware())
+    dp.callback_query.middleware(MaintenanceMiddleware())
     dp.include_router(group_guard_router)
     dp.include_router(admin_router)
     dp.include_router(payments_router)
+    dp.include_router(box_router)
+    dp.include_router(run_open_router)
     dp.include_router(user_router)
     return dp
 
