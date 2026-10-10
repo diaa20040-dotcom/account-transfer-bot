@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     admin_password: str = "change_me"
     secret_key: str = "dev-secret-change-me"
     host: str = "0.0.0.0"
-    port: int = 8765
+    port: int = Field(default=8765, validation_alias=AliasChoices("PORT", "port"))
     database_url: str = "sqlite:///./data/bot.db"
 
     @property

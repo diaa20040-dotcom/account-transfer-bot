@@ -25,6 +25,11 @@ serializer = URLSafeSerializer(settings.secret_key, salt="admin-session")
 
 def create_admin_app() -> FastAPI:
     app = FastAPI(title="Transfer Bot Admin")
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
     app.mount("/static", StaticFiles(directory=str(TEMPLATES_DIR / "static")), name="static")
 
     def get_session(request: Request) -> bool:
