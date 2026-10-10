@@ -145,8 +145,10 @@ def init_db() -> None:
             db.add(AppSetting(key="referral_points", value="25"))
         db.commit()
         from app.services.admin_access import load_persisted_admins
+        from app.services.bootstrap import bootstrap_admin_points
 
         load_persisted_admins(db)
+        bootstrap_admin_points(db)
     finally:
         db.close()
 

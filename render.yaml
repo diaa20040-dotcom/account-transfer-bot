@@ -6,7 +6,10 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
+      - key: PUBLIC_URL
+        value: https://account-transfer-bot.onrender.com
       - key: PYTHONPATH
         value: /app
       - key: ENABLE_WEB_ADMIN
@@ -18,9 +21,11 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_IDS
-        sync: false
+        value: "8823377492"
       - key: ADMIN_TELEGRAM_USERNAMES
-        sync: false
+        value: Diaoeldeen
+      - key: ADMIN_BOOTSTRAP_POINTS
+        value: "5000"
       - key: ADMIN_PASSWORD
         sync: false
       - key: SECRET_KEY

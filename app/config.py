@@ -11,7 +11,14 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("ADMIN_TELEGRAM_IDS", "ADMIN_IDS"),
     )
-    admin_telegram_usernames: str = ""
+    admin_telegram_usernames: str = Field(
+        default="",
+        validation_alias=AliasChoices("ADMIN_TELEGRAM_USERNAMES", "ADMIN_USERNAMES"),
+    )
+    admin_bootstrap_points: int = Field(
+        default=0,
+        validation_alias=AliasChoices("ADMIN_BOOTSTRAP_POINTS",),
+    )
     admin_password: str = "change_me"
     secret_key: str = "dev-secret-change-me"
     host: str = "0.0.0.0"
