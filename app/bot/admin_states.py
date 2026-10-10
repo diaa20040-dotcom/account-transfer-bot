@@ -29,3 +29,7 @@ class AdminMandatorySub(StatesGroup):
 
 class AdminMessageUser(StatesGroup):
     waiting_text = State()
+
+
+class AdminRestoreBackup(StatesGroup):
+    waiting_file = State()

@@ -1,7 +1,10 @@
+import json
+from datetime import datetime
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from sqlalchemy import desc
 
 from app.bot.admin_keyboards import (
@@ -22,6 +25,7 @@ from app.bot.admin_states import (
     AdminSetReferral,
     AdminMandatorySub,
     AdminMessageUser,
+    AdminRestoreBackup,
 )
 from app.bot.keyboards import main_menu
 from app.database import Country, SessionLocal, Task, TransferRequest, User, get_setting, set_setting
@@ -32,8 +36,11 @@ from app.services.mandatory_sub import (
     KEY_INVITE_LINK,
     get_mandatory_sub_config,
 )
+from app.services.backup_export import backup_json_bytes, import_backup_payload
 from app.services.user_notify import notify_transfer_status, send_admin_message_to_user
 from app.services.users import get_or_create_user
+import json
+from datetime import datetime
 
 router = Router()
 
@@ -768,3 +775,63 @@ async def admin_users(callback: CallbackQuery) -> None:
     finally:
         db.close()
     await callback.answer()
+
+
+@router.callback_query(F.data == "adm:backup")
+async def admin_backup(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    db = SessionLocal()
+    try:
+        data = backup_json_bytes(db)
+        n_users = db.query(User).count()
+    finally:
+        db.close()
+    name = f"bot_backup_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.json"
+    await callback.message.answer_document(
+        BufferedInputFile(data, filename=name),
+        caption=f"📥 نسخة احتياطية\nالمستخدمون: {n_users}\nاحفظ الملف قبل أي تحديث على Render.",
+    )
+    await callback.answer("تم إرسال النسخة")
+
+
+@router.callback_query(F.data == "adm:restore")
+async def admin_restore_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    await state.set_state(AdminRestoreBackup.waiting_file)
+    await callback.message.answer(
+        "📤 أرسل ملف **bot_backup_….json** (النسخة الاحتياطية) كمستند.\n"
+        "سيتم استبدال النقاط والإعدادات والمهام بمحتوى الملف.",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminRestoreBackup.waiting_file, F.document)
+async def admin_restore_file(message: Message, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_message(message):
+        return
+    doc = message.document
+    if not doc or not (doc.file_name or "").endswith(".json"):
+        await message.answer("أرسل ملف JSON فقط (.json)")
+        return
+    file = await bot.get_file(doc.file_id)
+    raw = await bot.download_file(file.file_path)
+    try:
+        payload = json.loads(raw.read().decode("utf-8"))
+    except Exception:
+        await message.answer("ملف غير صالح.")
+        return
+    db = SessionLocal()
+    try:
+        users_n, tasks_n = import_backup_payload(db, payload)
+    finally:
+        db.close()
+    await state.clear()
+    await message.answer(
+        f"✅ تمت الاستعادة.\nالمستخدمون: {users_n}\nالمهام: {tasks_n}",
+        reply_markup=admin_main_inline(),
+    )

@@ -19,6 +19,10 @@ def admin_main_inline() -> InlineKeyboardMarkup:
             ],
             [InlineKeyboardButton(text="💎 إضافة نقاط لمستخدم", callback_data="adm:addpoints")],
             [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
+            [
+                InlineKeyboardButton(text="📥 نسخة احتياطية", callback_data="adm:backup"),
+                InlineKeyboardButton(text="📤 استعادة نسخة", callback_data="adm:restore"),
+            ],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="adm:close")],
         ]
     )

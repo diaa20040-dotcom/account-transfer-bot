@@ -64,6 +64,14 @@ docker run -d --restart unless-stopped -p 8765:8765 --env-file .env -v botdata:/
 
 ---
 
+## تحديث الكود بدون خسارة البيانات
+
+1. من البوت: `/admin` → **📥 نسخة احتياطية** — احفظ ملف JSON على تليفونك.
+2. على Render: **Manual Deploy** → **Deploy latest commit** (تجنب *Clear build cache* إلا لو في مشكلة).
+3. لو الرصيد أو المستخدمين اختفوا بعد النشر: `/admin` → **📤 استعادة نسخة** وأرسل نفس الملف.
+
+**Restart service** فقط = آمن، البيانات تفضل. **Deploy** على المجاني قد يمسح SQLite أحياناً — النسخة الاحتياطية تحميك.
+
 ## بعد النشر
 
 - جرّب `/start` و `/admin`
