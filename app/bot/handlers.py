@@ -1,9 +1,10 @@
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.bot.keyboards import countries_keyboard, main_menu, tasks_keyboard
+from app.bot.mandatory_keyboards import mandatory_sub_keyboard
 from app.bot.states import TransferStates
 from app.config import settings
 from app.services.admin_access import is_admin, persist_admin
@@ -18,6 +19,7 @@ from app.database import (
     get_setting,
 )
 from app.i18n import t
+from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
 from app.services.users import get_or_create_user, referral_count
 
 router = Router()
@@ -55,6 +57,21 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot) -> None:
             persist_admin(db, message.from_user.id)
         lang = user.language
         name = message.from_user.first_name or "User"
+        msub = get_mandatory_sub_config(db)
+        if (
+            msub.active
+            and not admin
+            and not await is_user_subscribed(bot, msub.chat_id, message.from_user.id)
+        ):
+            await message.answer(
+                t(lang, "mandatory_sub_prompt"),
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            await message.answer(
+                "⬇️",
+                reply_markup=mandatory_sub_keyboard(lang, msub.invite_link),
+            )
+            return
         await message.answer(
             t(lang, "welcome", name=name, points=user.points),
             reply_markup=main_menu(lang, admin),
@@ -142,6 +159,39 @@ async def show_tasks(message: Message) -> None:
             title = task.title_ar if lang == "ar" else task.title_en
             lines.append(t(lang, "task_line", title=title, reward=task.reward_points))
         await message.answer("\n".join(lines), reply_markup=tasks_keyboard(lang, tasks))
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "verify_mandatory")
+async def verify_mandatory(callback: CallbackQuery, bot: Bot) -> None:
+    db = SessionLocal()
+    try:
+        user, _ = get_or_create_user(
+            db,
+            callback.from_user.id,
+            callback.from_user.username,
+            callback.from_user.first_name,
+        )
+        lang = user.language
+        msub = get_mandatory_sub_config(db)
+        if not msub.active:
+            await callback.answer("—", show_alert=True)
+            return
+        if not await is_user_subscribed(bot, msub.chat_id, callback.from_user.id):
+            await callback.answer(t(lang, "mandatory_sub_fail"), show_alert=True)
+            return
+        admin = is_admin(callback.from_user.id, callback.from_user.username)
+        name = callback.from_user.first_name or "User"
+        await callback.answer(t(lang, "mandatory_sub_ok"), show_alert=True)
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await callback.message.answer(
+            t(lang, "welcome", name=name, points=user.points),
+            reply_markup=main_menu(lang, admin),
+        )
     finally:
         db.close()
 

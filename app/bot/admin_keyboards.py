@@ -18,6 +18,7 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0"),
             ],
             [InlineKeyboardButton(text="💎 إضافة نقاط لمستخدم", callback_data="adm:addpoints")],
+            [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="adm:close")],
         ]
     )
@@ -90,6 +91,23 @@ def tasks_admin_keyboard(tasks: list) -> InlineKeyboardMarkup:
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def mandatory_sub_admin_keyboard(enabled: bool) -> InlineKeyboardMarkup:
+    toggle = "إيقاف الاشتراك الإجباري" if enabled else "تفعيل الاشتراك الإجباري"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🆔 تعيين Chat ID للقناة", callback_data="adm:msub_chat")],
+            [InlineKeyboardButton(text="🔗 تعيين رابط القناة", callback_data="adm:msub_link")],
+            [
+                InlineKeyboardButton(
+                    text=f"{'⛔' if enabled else '✅'} {toggle}",
+                    callback_data="adm:msub_toggle",
+                )
+            ],
+            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+        ]
+    )
 
 
 def task_actions_keyboard(task_id: int, active: bool) -> InlineKeyboardMarkup:

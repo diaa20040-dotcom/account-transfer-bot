@@ -25,6 +25,12 @@ TEXTS = {
         "points_info": "رصيدك: {points} نقطة",
         "back": "◀️ رجوع",
         "use_menu": "استخدم الأزرار بالأسفل.",
+        "mandatory_sub_prompt": "📢 للمتابعة يجب الاشتراك في القناة أولاً.\nانضم ثم اضغط «تحقق من الاشتراك».",
+        "mandatory_sub_join": "🔗 اشترك في القناة",
+        "mandatory_sub_verify_btn": "✅ تحقق من الاشتراك",
+        "mandatory_sub_ok": "تم التحقق! يمكنك استخدام البوت الآن.",
+        "mandatory_sub_fail": "❌ لم يتم العثور على اشتراكك. انضم للقناة ثم اضغط التحقق مرة أخرى.",
+        "mandatory_sub_blocked": "اشترك في القناة أولاً ثم اضغط تحقق من الاشتراك.",
     },
     "en": {
         "welcome": "Hello {name} 👋\nYour points: {points}\nChoose from the menu:",
@@ -52,6 +58,12 @@ TEXTS = {
         "points_info": "Balance: {points} points",
         "back": "◀️ Back",
         "use_menu": "Use the buttons below.",
+        "mandatory_sub_prompt": "📢 Subscribe to the channel first to continue.\nJoin, then tap «Verify subscription».",
+        "mandatory_sub_join": "🔗 Join channel",
+        "mandatory_sub_verify_btn": "✅ Verify subscription",
+        "mandatory_sub_ok": "Verified! You can use the bot now.",
+        "mandatory_sub_fail": "❌ Subscription not found. Join the channel and try again.",
+        "mandatory_sub_blocked": "Subscribe to the channel first, then tap verify.",
     },
 }
 

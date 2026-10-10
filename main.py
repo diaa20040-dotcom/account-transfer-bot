@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from app.bot.admin_handlers import router as admin_router
 from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
-from app.bot.middlewares import PrivateChatsOnlyMiddleware
+from app.bot.middlewares import MandatorySubMiddleware, PrivateChatsOnlyMiddleware
 from app.config import settings
 from app.database import init_db
 from app.services.admin_notify import set_admin_ids
@@ -53,6 +53,8 @@ async def run_bot() -> None:
     dp = Dispatcher(storage=MemoryStorage())
     dp.message.middleware(PrivateChatsOnlyMiddleware())
     dp.callback_query.middleware(PrivateChatsOnlyMiddleware())
+    dp.message.middleware(MandatorySubMiddleware())
+    dp.callback_query.middleware(MandatorySubMiddleware())
     dp.include_router(group_guard_router)
     dp.include_router(admin_router)
     dp.include_router(user_router)

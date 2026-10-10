@@ -20,3 +20,8 @@ class AdminSetCountryCost(StatesGroup):
 class AdminAddPoints(StatesGroup):
     target = State()
     amount = State()
+
+
+class AdminMandatorySub(StatesGroup):
+    chat_id = State()
+    invite_link = State()

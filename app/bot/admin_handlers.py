@@ -13,16 +13,24 @@ from app.bot.admin_keyboards import (
     task_actions_keyboard,
     tasks_admin_keyboard,
     transfer_status_keyboard,
+    mandatory_sub_admin_keyboard,
 )
 from app.bot.admin_states import (
     AdminAddPoints,
     AdminAddTask,
     AdminSetCountryCost,
     AdminSetReferral,
+    AdminMandatorySub,
 )
 from app.bot.keyboards import main_menu
 from app.database import Country, SessionLocal, Task, TransferRequest, User, get_setting, set_setting
 from app.services.admin_access import is_admin, persist_admin
+from app.services.mandatory_sub import (
+    KEY_CHAT_ID,
+    KEY_ENABLED,
+    KEY_INVITE_LINK,
+    get_mandatory_sub_config,
+)
 from app.services.users import get_or_create_user
 
 router = Router()
@@ -421,6 +429,114 @@ async def adm_task_link(message: Message, state: FSMContext) -> None:
         )
         db.commit()
         await message.answer("✅ تمت إضافة المهمة.")
+    finally:
+        db.close()
+    await state.clear()
+
+
+def _mandatory_sub_admin_text(cfg) -> str:
+    status = "مفعّل ✅" if cfg.enabled else "متوقف ⛔"
+    chat = cfg.chat_id or "— لم يُعيَّن —"
+    link = cfg.invite_link or "—"
+    return (
+        "📢 **الاشتراك الإجباري**\n\n"
+        f"الحالة: {status}\n"
+        f"Chat ID: `{chat}`\n"
+        f"رابط القناة: {link}\n\n"
+        "يجب أن يكون البوت **أدمن** في القناة/الجروب للتحقق.\n"
+        "بعد التفعيل، المستخدم لا يرى القائمة حتى يشترك ويضغط تحقق."
+    )
+
+
+@router.callback_query(F.data == "adm:msub")
+async def admin_mandatory_sub(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    await state.clear()
+    db = SessionLocal()
+    try:
+        cfg = get_mandatory_sub_config(db)
+    finally:
+        db.close()
+    await callback.message.edit_text(
+        _mandatory_sub_admin_text(cfg),
+        reply_markup=mandatory_sub_admin_keyboard(cfg.enabled),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:msub_toggle")
+async def admin_mandatory_sub_toggle(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    db = SessionLocal()
+    try:
+        cfg = get_mandatory_sub_config(db)
+        if not cfg.enabled and not cfg.chat_id:
+            await callback.answer("عيّن Chat ID للقناة أولاً", show_alert=True)
+            return
+        new_val = "0" if cfg.enabled else "1"
+        set_setting(db, KEY_ENABLED, new_val)
+        cfg = get_mandatory_sub_config(db)
+        await callback.message.edit_text(
+            _mandatory_sub_admin_text(cfg),
+            reply_markup=mandatory_sub_admin_keyboard(cfg.enabled),
+            parse_mode="Markdown",
+        )
+        await callback.answer("تم التحديث")
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "adm:msub_chat")
+async def admin_mandatory_sub_chat(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminMandatorySub.chat_id)
+    await callback.message.answer(
+        "أرسل **Chat ID** للقناة أو الجروب (مثل `-100123...` أو `@channel`):",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminMandatorySub.chat_id, F.text)
+async def admin_mandatory_sub_chat_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    chat_id = message.text.strip()
+    db = SessionLocal()
+    try:
+        set_setting(db, KEY_CHAT_ID, chat_id)
+        await message.answer(f"✅ تم حفظ Chat ID: `{chat_id}`", parse_mode="Markdown")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data == "adm:msub_link")
+async def admin_mandatory_sub_link(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminMandatorySub.invite_link)
+    await callback.message.answer("أرسل رابط القناة (t.me/...) أو اكتب `-` لحذف الرابط:")
+    await callback.answer()
+
+
+@router.message(AdminMandatorySub.invite_link, F.text)
+async def admin_mandatory_sub_link_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    link = message.text.strip()
+    if link == "-":
+        link = ""
+    db = SessionLocal()
+    try:
+        set_setting(db, KEY_INVITE_LINK, link)
+        await message.answer("✅ تم حفظ رابط القناة." if link else "✅ تم حذف الرابط.")
     finally:
         db.close()
     await state.clear()
