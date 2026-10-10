@@ -35,6 +35,7 @@ def transfer_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✅ done", callback_data=f"adm:st:{req_id}:done"),
                 InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:st:{req_id}:rejected"),
             ],
+            [InlineKeyboardButton(text="💬 مراسلة المستخدم", callback_data=f"adm:umsg:{req_id}")],
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )

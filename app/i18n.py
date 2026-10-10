@@ -31,6 +31,11 @@ TEXTS = {
         "mandatory_sub_ok": "تم التحقق! يمكنك استخدام البوت الآن.",
         "mandatory_sub_fail": "❌ لم يتم العثور على اشتراكك. انضم للقناة ثم اضغط التحقق مرة أخرى.",
         "mandatory_sub_blocked": "اشترك في القناة أولاً ثم اضغط تحقق من الاشتراك.",
+        "admin_inbox": "📩 رسالة من الإدارة (طلب #{req_id})\n\n{body}",
+        "status_pending": "📋 طلبك #{req_id}: قيد المراجعة.",
+        "status_processing": "🔄 طلبك #{req_id}: جاري التنفيذ. انتظر رسالة من الإدارة إن لزم.",
+        "status_done": "✅ طلبك #{req_id}: تم التنفيذ.",
+        "status_rejected": "❌ طلبك #{req_id}: تم رفض الطلب. تواصل مع الإدارة إن احتجت توضيحاً.",
     },
     "en": {
         "welcome": "Hello {name} 👋\nYour points: {points}\nChoose from the menu:",
@@ -64,6 +69,11 @@ TEXTS = {
         "mandatory_sub_ok": "Verified! You can use the bot now.",
         "mandatory_sub_fail": "❌ Subscription not found. Join the channel and try again.",
         "mandatory_sub_blocked": "Subscribe to the channel first, then tap verify.",
+        "admin_inbox": "📩 Message from admin (request #{req_id})\n\n{body}",
+        "status_pending": "📋 Request #{req_id}: under review.",
+        "status_processing": "🔄 Request #{req_id}: in progress.",
+        "status_done": "✅ Request #{req_id}: completed.",
+        "status_rejected": "❌ Request #{req_id}: rejected. Contact admin if you need details.",
     },
 }
 

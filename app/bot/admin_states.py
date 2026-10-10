@@ -25,3 +25,7 @@ class AdminAddPoints(StatesGroup):
 class AdminMandatorySub(StatesGroup):
     chat_id = State()
     invite_link = State()
+
+
+class AdminMessageUser(StatesGroup):
+    waiting_text = State()

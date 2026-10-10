@@ -21,6 +21,7 @@ from app.bot.admin_states import (
     AdminSetCountryCost,
     AdminSetReferral,
     AdminMandatorySub,
+    AdminMessageUser,
 )
 from app.bot.keyboards import main_menu
 from app.database import Country, SessionLocal, Task, TransferRequest, User, get_setting, set_setting
@@ -31,6 +32,7 @@ from app.services.mandatory_sub import (
     KEY_INVITE_LINK,
     get_mandatory_sub_config,
 )
+from app.services.user_notify import notify_transfer_status, send_admin_message_to_user
 from app.services.users import get_or_create_user
 
 router = Router()
@@ -172,8 +174,66 @@ async def admin_req_detail(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("adm:umsg:"))
+async def admin_message_user_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    req_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        r = db.query(TransferRequest).filter_by(id=req_id).first()
+        if not r:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        await state.update_data(msg_req_id=req_id, msg_target_tid=r.user.telegram_id)
+        await state.set_state(AdminMessageUser.waiting_text)
+        await callback.message.answer(
+            f"💬 اكتب الرسالة المرسلة للمستخدم (طلب #{req_id}):\n"
+            f"المستخدم: `{r.user.telegram_id}` @{r.user.username or '—'}\n"
+            "أرسل `/cancel` للإلغاء.",
+            parse_mode="Markdown",
+        )
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.message(AdminMessageUser.waiting_text, F.text)
+async def admin_message_user_send(message: Message, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_message(message):
+        return
+    if message.text.strip().lower() == "/cancel":
+        await state.clear()
+        await message.answer("تم الإلغاء.")
+        return
+    data = await state.get_data()
+    req_id = data.get("msg_req_id")
+    target_tid = data.get("msg_target_tid")
+    if not target_tid:
+        await state.clear()
+        await message.answer("انتهت الجلسة. افتح الطلب مرة أخرى.")
+        return
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(telegram_id=target_tid).first()
+        if not user:
+            await message.answer("المستخدم غير موجود في قاعدة البيانات.")
+            return
+        ok = await send_admin_message_to_user(bot, user, int(req_id or 0), message.text.strip())
+        if ok:
+            await message.answer(f"✅ تم إرسال الرسالة للمستخدم (طلب #{req_id}).")
+        else:
+            await message.answer(
+                "❌ تعذّر الإرسال. ربما المستخدم حظر البوت أو لم يضغط Start."
+            )
+    finally:
+        db.close()
+    await state.clear()
+
+
 @router.callback_query(F.data.startswith("adm:st:"))
-async def admin_set_status(callback: CallbackQuery) -> None:
+async def admin_set_status(callback: CallbackQuery, bot: Bot) -> None:
     if not _admin_only_callback(callback):
         await callback.answer("غير مصرح", show_alert=True)
         return
@@ -184,6 +244,7 @@ async def admin_set_status(callback: CallbackQuery) -> None:
         if r:
             r.status = status
             db.commit()
+            await notify_transfer_status(bot, r.user, r.id, status)
             await callback.answer(f"تم: {status}", show_alert=True)
             text = (
                 f"طلب #{r.id}\n"
