@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = Field(default=8765, validation_alias=AliasChoices("PORT", "port"))
     database_url: str = "sqlite:///./data/bot.db"
+    enable_web_admin: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ENABLE_WEB_ADMIN", "WEB_ADMIN_ENABLED"),
+    )
 
     @property
     def admin_ids(self) -> list[int]:

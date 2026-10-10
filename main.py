@@ -4,8 +4,8 @@ import logging
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from fastapi import FastAPI
 
-from app.admin.app import create_admin_app
 from app.bot.admin_handlers import router as admin_router
 from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
@@ -16,6 +16,24 @@ from app.services.admin_notify import set_admin_ids
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def create_health_app() -> FastAPI:
+    app = FastAPI(title="Transfer Bot")
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
+    return app
+
+
+def create_http_app() -> FastAPI:
+    if settings.enable_web_admin:
+        from app.admin.app import create_admin_app
+
+        return create_admin_app()
+    return create_health_app()
 
 
 async def resolve_admin_ids(bot: Bot) -> list[int]:
@@ -46,11 +64,15 @@ async def run_bot() -> None:
 
 async def main() -> None:
     init_db()
+    mode = "bot + web admin" if settings.enable_web_admin else "bot + /health only"
+    logger.info("Starting (%s) on port %s", mode, settings.port)
     config = uvicorn.Config(
-        create_admin_app(),
+        create_http_app(),
         host=settings.host,
         port=settings.port,
-        log_level="info",
+        log_level="warning",
+        access_log=False,
+        loop="asyncio",
     )
     server = uvicorn.Server(config)
     bot_task = asyncio.create_task(run_bot())
