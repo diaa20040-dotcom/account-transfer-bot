@@ -1,0 +1,413 @@
+{
+  "users": [
+    {
+      "telegram_id": 8823377492,
+      "points": 4930,
+      "language": "ar",
+      "username": "Diaoeldeen",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 1087968824,
+      "points": 0,
+      "language": "ar",
+      "username": "GroupAnonymousBot",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 7934622187,
+      "points": 58,
+      "language": "ar",
+      "username": "maznyso",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 1255662276,
+      "points": 1,
+      "language": "ar",
+      "username": "Abdullah_Emad2",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 6942460266,
+      "points": 1,
+      "language": "ar",
+      "username": "MOHAME18",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8946066553,
+      "points": 0,
+      "language": "ar",
+      "username": "thewisdom0",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8823964791,
+      "points": 1,
+      "language": "ar",
+      "username": "MrBotMaker1",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 7835286531,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8924059646,
+      "points": 1,
+      "language": "ar",
+      "username": "niroooooooooooooo",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8268979025,
+      "points": 0,
+      "language": "ar",
+      "username": "ahmedmsaad12",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8661169942,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 2014526337,
+      "points": 0,
+      "language": "ar",
+      "username": "sidosidali",
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8148800476,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": false,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8952316714,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 7785853656,
+      "points": 1,
+      "language": "ar",
+      "username": "kh0205755",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8595496389,
+      "points": 0,
+      "language": "ar",
+      "username": "si_av1",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 801421612,
+      "points": 1,
+      "language": "ar",
+      "username": "r_24rrr",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 1959192985,
+      "points": 1,
+      "language": "ar",
+      "username": "Walidomimo",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8869043417,
+      "points": 0,
+      "language": "ar",
+      "username": "usam404",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 7514712717,
+      "points": 1,
+      "language": "ar",
+      "username": "Kokaman124",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 8733641534,
+      "points": 3,
+      "language": "ar",
+      "username": "r_d_t8",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 7620397689,
+      "points": 1,
+      "language": "ar",
+      "username": "RB_AAW",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8733641534
+    },
+    {
+      "telegram_id": 8748674308,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8804114207,
+      "points": 1,
+      "language": "ar",
+      "username": "cr7mo7ha",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 6142689791,
+      "points": 0,
+      "language": "ar",
+      "username": "acabachir",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 6719249031,
+      "points": 0,
+      "language": "ar",
+      "username": "Sb_9_9_9_sb",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 7833542859,
+      "points": 1,
+      "language": "ar",
+      "username": "Mazindsfjd",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 5928262301,
+      "points": 1,
+      "language": "ar",
+      "username": "mehdiarif1",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8614246967,
+      "points": 3,
+      "language": "ar",
+      "username": "Axmed625",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 7998106331,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8949132562,
+      "points": 0,
+      "language": "ar",
+      "username": "bbbtttrru",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8733641534
+    },
+    {
+      "telegram_id": 8623094092,
+      "points": 1,
+      "language": "ar",
+      "username": "Axmed975",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8614246967
+    },
+    {
+      "telegram_id": 7308082248,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8707864291,
+      "points": 1,
+      "language": "ar",
+      "username": "mounibella",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8820489069,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8614246967
+    },
+    {
+      "telegram_id": 8573040584,
+      "points": 1,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 7380386629,
+      "points": 1,
+      "language": "ar",
+      "username": "omarahmed9388",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 7909392035,
+      "points": 1,
+      "language": "ar",
+      "username": "Abdualwjdi",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8814703141,
+      "points": 0,
+      "language": "ar",
+      "username": null,
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 7320640152,
+      "points": 1,
+      "language": "ar",
+      "username": "kiro_reda1",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 8233432539,
+      "points": 1,
+      "language": "ar",
+      "username": "Hossam4k",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8823377492
+    },
+    {
+      "telegram_id": 8084315215,
+      "points": 0,
+      "language": "ar",
+      "username": "S_E_1F",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    },
+    {
+      "telegram_id": 8339578768,
+      "points": 0,
+      "language": "ar",
+      "username": "O_S_SS",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8084315215
+    },
+    {
+      "telegram_id": 8609794441,
+      "points": 0,
+      "language": "ar",
+      "username": null,
+      "referral_credited": true,
+      "referred_by_telegram_id": 8084315215
+    },
+    {
+      "telegram_id": 8095775033,
+      "points": 0,
+      "language": "ar",
+      "username": "S_O_CR",
+      "referral_credited": true,
+      "referred_by_telegram_id": 8084315215
+    },
+    {
+      "telegram_id": 7206353575,
+      "points": 0,
+      "language": "en",
+      "username": "Xq_Mr",
+      "referral_credited": false,
+      "referred_by_telegram_id": null
+    }
+  ],
+  "settings": {
+    "referral_points": "1",
+    "persisted_admin_ids": "8823377492",
+    "mandatory_sub_invite_link": "https://t.me/Minexaa",
+    "mandatory_sub_chat_id": "@Minexaa",
+    "mandatory_sub_enabled": "1"
+  },
+  "tasks": [
+    {
+      "title_ar": "شات",
+      "title_en": "CHAT",
+      "chat_id": "@questaplay",
+      "invite_link": "https://t.me/questaplay",
+      "reward_points": 1,
+      "active": true,
+      "sort_order": 0
+    }
+  ],
+  "transfers": [
+    {
+      "user_telegram_id": 8823377492,
+      "country_id": 1,
+      "account_name": "ediaa158@gmail.com",
+      "account_password": "123diaa456",
+      "status": "pending"
+    },
+    {
+      "user_telegram_id": 7934622187,
+      "country_id": 1,
+      "account_name": "Ajjana",
+      "account_password": "Sjjsns",
+      "status": "pending"
+    },
+    {
+      "user_telegram_id": 8084315215,
+      "country_id": 1,
+      "account_name": "itsmebruhh5@gmail.com",
+      "account_password": "QQQQwwww#4",
+      "status": "pending"
+    }
+  ]
+}
