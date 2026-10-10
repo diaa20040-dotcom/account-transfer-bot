@@ -146,8 +146,10 @@ def init_db() -> None:
         db.commit()
         from app.services.admin_access import load_persisted_admins
         from app.services.bootstrap import bootstrap_admin_points
+        from app.services.startup_seed import apply_startup_seed
 
         load_persisted_admins(db)
+        apply_startup_seed(db)
         bootstrap_admin_points(db)
     finally:
         db.close()
