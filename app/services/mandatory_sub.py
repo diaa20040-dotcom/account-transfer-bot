@@ -31,8 +31,11 @@ def get_mandatory_sub_config(db: Session) -> MandatorySubConfig:
 async def is_user_subscribed(bot: Bot, chat_id: str, telegram_id: int) -> bool:
     if not chat_id:
         return True
+    cid = chat_id.strip()
+    if cid.startswith("https://t.me/"):
+        cid = "@" + cid.rstrip("/").split("/")[-1]
     try:
-        member = await bot.get_chat_member(chat_id=chat_id, user_id=telegram_id)
+        member = await bot.get_chat_member(chat_id=cid, user_id=telegram_id)
         return member.status not in ("left", "kicked")
     except Exception:
         return False

@@ -20,7 +20,12 @@ from app.database import (
 )
 from app.i18n import t
 from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
-from app.services.users import get_or_create_user, referral_count, try_award_referral
+from app.services.users import (
+    get_or_create_user,
+    referral_count,
+    referral_pending_count,
+    try_award_referral,
+)
 
 router = Router()
 
@@ -137,8 +142,16 @@ async def show_referral(message: Message, bot: Bot) -> None:
         link = f"https://t.me/{username}?start=ref_{user.telegram_id}"
         ref_pts = int(get_setting(db, "referral_points", "25"))
         count = referral_count(db, user)
+        pending = referral_pending_count(db, user)
         await message.answer(
-            t(user.language, "referral_info", link=link, points=ref_pts, count=count)
+            t(
+                user.language,
+                "referral_info",
+                link=link,
+                points=ref_pts,
+                count=count,
+                pending=pending,
+            )
         )
     finally:
         db.close()

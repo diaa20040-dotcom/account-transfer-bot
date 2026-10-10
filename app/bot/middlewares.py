@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 from app.database import SessionLocal
 from app.services.admin_access import is_admin
 from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
+from app.services.users import maybe_credit_referral
 from app.i18n import t
 from app.bot.mandatory_keyboards import mandatory_sub_keyboard
 
@@ -71,6 +72,7 @@ class MandatorySubMiddleware(BaseMiddleware):
         try:
             cfg = get_mandatory_sub_config(db)
             if not cfg.active:
+                await maybe_credit_referral(db, bot, telegram_id)
                 return await handler(event, data)
             invite_link = cfg.invite_link
             from app.database import User
@@ -79,6 +81,7 @@ class MandatorySubMiddleware(BaseMiddleware):
             if user:
                 lang = user.language
             if await is_user_subscribed(bot, cfg.chat_id, telegram_id):
+                await maybe_credit_referral(db, bot, telegram_id)
                 return await handler(event, data)
         finally:
             db.close()
