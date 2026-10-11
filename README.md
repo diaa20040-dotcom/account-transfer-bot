@@ -39,9 +39,16 @@ python main.py
 
 دليل كامل: [DEPLOY-FREE-HOSTING.md](DEPLOY-FREE-HOSTING.md)
 
-### لماذا تُصفَّر البيانات على Render؟
+### قاعدة بيانات دائمة (مُوصى به)
 
-على الخطة المجانية السيرفر **ينام** ويُعاد تشغيله — ملف SQLite يُمسح **بدون ما تعمل أنت deploy**. الحل: أضف في Render متغير **`GITHUB_BACKUP_TOKEN`** (توكن GitHub بصلاحية كتابة على المستودع) و **`GITHUB_REPO`** = `diaa20040-dotcom/account-transfer-bot`. البوت يرفع نسخة تلقائية كلما تتغيّر النقاط، وعند إعادة التشغيل يستعيد من آخر نسخة على GitHub. من الإدارة: **☁️ رفع النسخة لـ GitHub** / **♻️ جلب من GitHub**.
+**لا تستخدم SQLite على Render** — البيانات تضيع عند إعادة تشغيل السيرفر.
+
+استخدم **Neon Postgres (مجاني)** + Render: دليل خطوة بخطوة في **[DEPLOY-NEON.md](DEPLOY-NEON.md)**  
+باختصار: أنشئ مشروع على Neon → انسخ `DATABASE_URL` → الصقه في Environment على Render → Redeploy.
+
+### نسخة احتياطية على GitHub (إضافي)
+
+مع Postgres اختياري: **`GITHUB_BACKUP_TOKEN`** لرفع نسخة على GitHub. من الإدارة: **☁️ رفع النسخة** / **♻️ جلب من GitHub**.
 
 ## تنبيه أمني
 

@@ -1,5 +1,14 @@
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def normalize_database_url(url: str) -> str:
+    u = (url or "").strip()
+    if u.startswith("postgres://"):
+        u = "postgresql+psycopg2://" + u[len("postgres://") :]
+    elif u.startswith("postgresql://") and "+psycopg2" not in u and "+psycopg" not in u:
+        u = "postgresql+psycopg2://" + u[len("postgresql://") :]
+    return u
 
 
 class Settings(BaseSettings):
@@ -24,6 +33,13 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = Field(default=8765, validation_alias=AliasChoices("PORT", "port"))
     database_url: str = "sqlite:///./data/bot.db"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_db_url(cls, v: object) -> object:
+        if isinstance(v, str):
+            return normalize_database_url(v)
+        return v
     enable_web_admin: bool = Field(
         default=False,
         validation_alias=AliasChoices("ENABLE_WEB_ADMIN", "WEB_ADMIN_ENABLED"),

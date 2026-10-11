@@ -121,9 +121,13 @@ def register_routes(app: FastAPI, bot: Bot, dp: Dispatcher) -> None:
                 hooked = info.url == webhook_url()
             except Exception:
                 hooked = False
+        from app.config import settings
+
+        db_kind = "postgres" if "postgres" in settings.database_url.lower() else "sqlite"
         return {
             "status": "ok",
             "bot_mode": mode,
+            "database": db_kind,
             "polling_alive": _bot_polling_alive,
             "webhook_ok": hooked,
         }

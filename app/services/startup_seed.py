@@ -17,6 +17,10 @@ from app.services.github_seed_sync import fetch_seed_from_github
 logger = logging.getLogger(__name__)
 
 
+def _using_postgres() -> bool:
+    return "postgres" in settings.database_url.lower()
+
+
 def _seed_stats(payload: dict) -> tuple[int, int]:
     users = payload.get("users") or []
     return len(users), sum(int(u.get("points") or 0) for u in users)
@@ -30,6 +34,8 @@ def _load_restore_payload() -> dict | None:
 
 
 def _needs_restore(db: Session, payload: dict) -> bool:
+    if _using_postgres():
+        return db.query(User).count() == 0
     if db.query(User).count() == 0:
         return True
     seed_n, seed_pts = _seed_stats(payload)

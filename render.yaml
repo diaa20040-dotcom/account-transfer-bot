@@ -16,8 +16,9 @@ services:
         value: false
       - key: SKIP_PIP_ON_START
         value: 1
+      # ضع هنا رابط Neon Postgres (مجاني) — لا تستخدم SQLite على Render
       - key: DATABASE_URL
-        value: sqlite:////app/data/bot.db
+        sync: false
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_IDS
