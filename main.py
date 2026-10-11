@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -29,6 +30,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _bot_polling_alive = False
+
+
+def database_kind() -> str:
+    return "postgres" if "postgres" in settings.database_url.lower() else "sqlite"
+
+
+def is_render_without_postgres() -> bool:
+    on_render = bool(os.getenv("RENDER")) or "onrender.com" in (settings.public_url or "").lower()
+    return on_render and database_kind() == "sqlite"
 
 
 def build_dispatcher() -> Dispatcher:
@@ -123,7 +133,7 @@ def register_routes(app: FastAPI, bot: Bot, dp: Dispatcher) -> None:
                 hooked = False
         from app.config import settings
 
-        db_kind = "postgres" if "postgres" in settings.database_url.lower() else "sqlite"
+        db_kind = database_kind()
         return {
             "status": "ok",
             "bot_mode": mode,
@@ -164,6 +174,8 @@ def create_http_app(bot: Bot, dp: Dispatcher, lifespan) -> FastAPI:
 
 async def main() -> None:
     init_db()
+    if is_render_without_postgres():
+        logger.error("Fix DATABASE_URL before relying on user data persistence.")
     bot = Bot(token=settings.bot_token)
     dp = build_dispatcher()
 
@@ -173,6 +185,21 @@ async def main() -> None:
         me = await bot.get_me()
         logger.info("Bot ready as @%s", me.username)
         set_admin_ids(await resolve_admin_ids(bot))
+
+        if is_render_without_postgres():
+            logger.error(
+                "DATABASE_URL is SQLite on Render — data will be lost on restart. "
+                "Use Neon Postgres; see DEPLOY-NEON.md"
+            )
+            from app.services.notify_admins import notify_admins
+
+            await notify_admins(
+                bot,
+                "⚠️ البوت على Render بدون قاعدة دائمة (SQLite).\n"
+                "البيانات هتتلمس مع كل إعادة تشغيل.\n\n"
+                "الحل: Neon (مجاني) → ضع DATABASE_URL في Render → Redeploy.\n"
+                "التفاصيل في الملف DEPLOY-NEON.md على GitHub.",
+            )
 
         if use_webhook_mode():
             await ensure_telegram_webhook(bot, dp)
