@@ -38,9 +38,13 @@ def admin_main_inline() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="♻️ استعادة نسخة GitHub (قديمة)",
+                    text="☁️ رفع النسخة لـ GitHub",
+                    callback_data="adm:push_github",
+                ),
+                InlineKeyboardButton(
+                    text="♻️ جلب من GitHub",
                     callback_data="adm:reload_seed",
-                )
+                ),
             ],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="adm:close")],
         ]

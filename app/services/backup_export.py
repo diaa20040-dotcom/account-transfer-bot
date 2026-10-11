@@ -121,9 +121,19 @@ def _read_json_file(path: Path) -> dict[str, Any] | None:
 
 
 def load_seed_payload() -> dict[str, Any] | None:
-    """Pick the richest backup: bundled seed vs local runtime snapshot."""
+    """Pick the richest backup: GitHub (if configured) vs local files."""
     candidates: list[tuple[int, dict[str, Any]]] = []
-    for path in (BUNDLED_SEED, RUNTIME_SNAPSHOT):
+    try:
+        from app.services.github_seed_sync import fetch_seed_from_github
+
+        remote = fetch_seed_from_github()
+        if remote:
+            users = remote.get("users") or []
+            total_pts = sum(int(u.get("points") or 0) for u in users)
+            candidates.append((len(users) * 1000 + total_pts, remote))
+    except Exception:
+        pass
+    for path in (RUNTIME_SNAPSHOT, BUNDLED_SEED):
         data = _read_json_file(path)
         if not data:
             continue

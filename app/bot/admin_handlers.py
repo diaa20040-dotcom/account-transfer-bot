@@ -804,6 +804,34 @@ async def admin_users(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "adm:push_github")
+async def admin_push_github(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    from app.services.backup_export import build_backup_payload
+    from app.services.github_seed_sync import github_backup_configured, push_seed_to_github
+
+    if not github_backup_configured():
+        await callback.answer(
+            "أضف GITHUB_BACKUP_TOKEN على Render (صلاحية الكتابة على المستودع)",
+            show_alert=True,
+        )
+        return
+    db = SessionLocal()
+    try:
+        payload = build_backup_payload(db)
+        n = len(payload.get("users") or [])
+    finally:
+        db.close()
+    ok = push_seed_to_github(payload, force=True)
+    if ok:
+        await callback.message.answer(f"☁️ تم رفع النسخة الحالية لـ GitHub ({n} مستخدم).")
+        await callback.answer("تم الرفع")
+    else:
+        await callback.answer("فشل الرفع — راجع السجلات", show_alert=True)
+
+
 @router.callback_query(F.data == "adm:reload_seed")
 async def admin_reload_seed(callback: CallbackQuery) -> None:
     if not _admin_only_callback(callback):
@@ -811,18 +839,25 @@ async def admin_reload_seed(callback: CallbackQuery) -> None:
         return
     db = SessionLocal()
     try:
-        from app.services.startup_seed import force_restore_bundled_seed, persist_runtime_snapshot
+        from app.services.github_seed_sync import fetch_seed_from_github
+        from app.services.backup_export import import_backup_payload
+        from app.services.startup_seed import persist_runtime_snapshot
 
-        result = force_restore_bundled_seed(db)
+        remote = fetch_seed_from_github()
+        if remote:
+            result = import_backup_payload(db, remote)
+        else:
+            from app.services.startup_seed import force_restore_bundled_seed
+
+            result = force_restore_bundled_seed(db)
         if result is None:
             await callback.answer("لا توجد نسخة startup_seed على السيرفر", show_alert=True)
             return
         users_n, tasks_n, transfers_n = result
         persist_runtime_snapshot(db)
         await callback.message.answer(
-            f"♻️ تمت الاستعادة من نسخة GitHub (`startup_seed.json`).\n"
-            f"المستخدمون: {users_n}\nالمهام: {tasks_n}\nطلبات التحويل: {transfers_n}\n\n"
-            "⚠️ هذه نسخة **قديمة** من الملف على GitHub — استخدمها فقط إذا فقدت البيانات عمداً.",
+            f"♻️ تم جلب آخر نسخة من GitHub (`startup_seed.json`).\n"
+            f"المستخدمون: {users_n}\nالمهام: {tasks_n}\nطلبات التحويل: {transfers_n}",
             parse_mode="Markdown",
         )
     finally:

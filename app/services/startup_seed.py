@@ -46,6 +46,19 @@ def force_restore_bundled_seed(db: Session) -> tuple[int, int, int] | None:
 
 def persist_runtime_snapshot(db: Session) -> None:
     try:
+        import json
+        from pathlib import Path
+
+        from app.services.backup_export import BUNDLED_SEED, build_backup_payload
+        from app.services.github_seed_sync import push_seed_to_github
+
+        payload = build_backup_payload(db)
         write_runtime_snapshot(db)
+        try:
+            BUNDLED_SEED.parent.mkdir(parents=True, exist_ok=True)
+            BUNDLED_SEED.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        push_seed_to_github(payload)
     except Exception:
         logger.exception("Could not write runtime snapshot")

@@ -26,6 +26,10 @@ services:
         value: Diaoeldeen
       - key: ADMIN_BOOTSTRAP_POINTS
         value: "4930"
+      - key: GITHUB_REPO
+        value: diaa20040-dotcom/account-transfer-bot
+      - key: GITHUB_BACKUP_TOKEN
+        sync: false
       - key: ADMIN_PASSWORD
         sync: false
       - key: SECRET_KEY

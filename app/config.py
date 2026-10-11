@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     )
     webhook_path: str = Field(default="/telegram/webhook")
     webhook_secret: str = Field(default="", validation_alias=AliasChoices("WEBHOOK_SECRET",))
+    github_backup_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("GITHUB_BACKUP_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"),
+    )
+    github_repo: str = Field(
+        default="diaa20040-dotcom/account-transfer-bot",
+        validation_alias=AliasChoices("GITHUB_REPO", "GITHUB_REPOSITORY"),
+    )
 
     @property
     def admin_ids(self) -> list[int]:
