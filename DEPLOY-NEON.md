@@ -22,9 +22,11 @@ SQLite على Render **تُمسح** عند إعادة تشغيل السيرفر.
 
 بعد ما يصبح الخدمة **Live**، افتح في المتصفح:
 
-`https://YOUR-SERVICE.onrender.com/health`
+`https://account-transfer-bot.onrender.com/health`
 
 يجب أن ترى `"database": "postgres"`.
+
+إذا **ما** ظهر حقل `database` أو كان `sqlite` → راجع `DATABASE_URL` ثم **Manual Deploy** لآخر commit على `main`.
 
 ## 4) أول تشغيل على Postgres
 
