@@ -12,6 +12,24 @@ from app.services.users import get_or_create_user
 
 router = Router()
 
+# Old reply-keyboard labels (still on some clients until /start)
+_LEGACY_RUN_OPEN_BUTTONS = frozenset(
+    {
+        "🔓 فتح نقاط التشغيل",
+        "🔓 Open run points",
+    }
+)
+
+
+def _run_open_menu_texts() -> frozenset[str]:
+    return frozenset(
+        {
+            t("ar", "btn_run_open"),
+            t("en", "btn_run_open"),
+            *_LEGACY_RUN_OPEN_BUTTONS,
+        }
+    )
+
 
 def run_open_stars_amount(db) -> int:
     try:
@@ -32,7 +50,7 @@ async def send_run_open_invoice(bot: Bot, chat_id: int, lang: str, user_db_id: i
     )
 
 
-@router.message(F.text.in_({t("ar", "btn_run_open"), t("en", "btn_run_open")}))
+@router.message(F.text.func(lambda text: text in _run_open_menu_texts()))
 async def run_open_start(message: Message, state: FSMContext, bot: Bot) -> None:
     await state.clear()
     db = SessionLocal()

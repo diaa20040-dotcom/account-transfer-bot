@@ -1721,11 +1721,11 @@ async def admin_runopen_list(callback: CallbackQuery) -> None:
         total = q.count()
         items = q.offset(page * per_page).limit(per_page).all()
         if not items:
-            text = "لا توجد طلبات فتح تشغيل."
+            text = "لا توجد طلبات الجائزة الأسبوعية."
             kb = admin_main_inline()
         else:
             pages = max(1, (total - 1) // per_page + 1)
-            lines = [f"🔓 فتح التشغيل ({page + 1}/{pages})"]
+            lines = [f"🎁 الجائزة الأسبوعية ({page + 1}/{pages})"]
             for r in items:
                 lines.append(
                     f"\n#{r.id} | {r.status}\n"
@@ -1769,7 +1769,7 @@ async def admin_runopen_detail(callback: CallbackQuery) -> None:
             await callback.answer("غير موجود", show_alert=True)
             return
         text = (
-            f"فتح تشغيل #{r.id}\n"
+            f"جائزة أسبوعية #{r.id}\n"
             f"الحالة: {r.status}\n"
             f"المستخدم: {r.user.telegram_id} @{r.user.username or '—'}\n"
             f"النجوم: {r.stars_paid}\n"
@@ -1796,7 +1796,7 @@ async def admin_runopen_status(callback: CallbackQuery) -> None:
             db.commit()
             await callback.answer(f"تم: {status}", show_alert=True)
             text = (
-                f"فتح تشغيل #{r.id}\n"
+                f"جائزة أسبوعية #{r.id}\n"
                 f"الحالة: {r.status}\n"
                 f"المستخدم: {r.user.telegram_id}\n"
                 f"الحساب: {r.account_name}"
@@ -2063,7 +2063,7 @@ async def admin_maintenance(callback: CallbackQuery) -> None:
         db.close()
     status = "⛔ **متوقف** للمستخدمين" if on else "✅ **يعمل** للجميع"
     await callback.message.edit_text(
-        f"حالة البوت: {status}\n\nنجوم فتح التشغيل: **{stars}** ⭐",
+        f"حالة البوت: {status}\n\nنجوم الجائزة الأسبوعية: **{stars}** ⭐",
         reply_markup=maintenance_admin_keyboard(on),
         parse_mode="Markdown",
     )
@@ -2084,7 +2084,7 @@ async def admin_maintenance_toggle(callback: CallbackQuery) -> None:
         db.close()
     status = "⛔ **متوقف** للمستخدمين" if on else "✅ **يعمل** للجميع"
     await callback.message.edit_text(
-        f"حالة البوت: {status}\n\nنجوم فتح التشغيل: **{stars}** ⭐",
+        f"حالة البوت: {status}\n\nنجوم الجائزة الأسبوعية: **{stars}** ⭐",
         reply_markup=maintenance_admin_keyboard(on),
         parse_mode="Markdown",
     )
@@ -2101,7 +2101,10 @@ async def admin_runopen_stars(callback: CallbackQuery, state: FSMContext) -> Non
     finally:
         db.close()
     await state.set_state(AdminSetRunOpenStars.waiting_stars)
-    await callback.message.answer(f"نجوم فتح التشغيل الحالية: **{stars}**\nأرسل الرقم الجديد:", parse_mode="Markdown")
+    await callback.message.answer(
+        f"نجوم الجائزة الأسبوعية الحالية: **{stars}**\nأرسل الرقم الجديد:",
+        parse_mode="Markdown",
+    )
     await callback.answer()
 
 
@@ -2120,7 +2123,7 @@ async def admin_runopen_stars_save(message: Message, state: FSMContext) -> None:
     db = SessionLocal()
     try:
         set_setting(db, "run_open_stars", str(stars))
-        await message.answer(f"✅ فتح التشغيل: {stars} نجوم لكل استخدام.")
+        await message.answer(f"✅ الجائزة الأسبوعية: {stars} نجوم لكل طلب.")
     finally:
         db.close()
     await state.clear()

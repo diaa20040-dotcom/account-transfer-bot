@@ -10,7 +10,7 @@ def admin_main_inline() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📥 طلبات التحويل", callback_data="adm:transfers:0")],
             [
                 InlineKeyboardButton(text="📦 طلبات الصناديق", callback_data="adm:boxes:0"),
-                InlineKeyboardButton(text="🔓 فتح التشغيل", callback_data="adm:runopen:0"),
+                InlineKeyboardButton(text="🎁 الجائزة الأسبوعية", callback_data="adm:runopen:0"),
             ],
             [InlineKeyboardButton(text="👨‍👩‍👧 Play Pass", callback_data="adm:playpass:0")],
             [
@@ -282,7 +282,7 @@ def maintenance_admin_keyboard(enabled: bool) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text=label, callback_data="adm:maintenance_toggle")],
             [
-                InlineKeyboardButton(text="⭐ نجوم فتح التشغيل", callback_data="adm:runopen_stars"),
+                InlineKeyboardButton(text="⭐ نجوم الجائزة الأسبوعية", callback_data="adm:runopen_stars"),
             ],
             [InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")],
         ]
