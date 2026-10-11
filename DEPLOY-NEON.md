@@ -44,7 +44,13 @@ SQLite على Render **تُمسح** عند إعادة تشغيل السيرفر.
 | `ADMIN_IDS` | نعم |
 | `GITHUB_BACKUP_TOKEN` | اختياري (نسخة احتياطية على GitHub) |
 
-## 6) لا ترجع لـ SQLite على Render
+## 6) لو الـ Deploy فشل بعد ربط Postgres
+
+- من **Neon** → مشروع **Qiest** → **Branches** → **production** → **Reset data** (أو أنشئ branch جديد).
+- على Render: **Manual Deploy** لآخر commit على `main`.
+- في `DATABASE_URL` شيل `&channel_binding=require` لو ظهر خطأ اتصال.
+
+## 7) لا ترجع لـ SQLite على Render
 
 لا تضع `sqlite://...` في `DATABASE_URL` على السحابة — ستعود مشكلة اختفاء البيانات.
 

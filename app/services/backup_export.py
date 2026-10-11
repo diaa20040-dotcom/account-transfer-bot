@@ -309,5 +309,9 @@ def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, in
             if user and pid:
                 db.add(PromoRedemption(user_id=user.id, promo_id=pid))
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return users_n, tasks_n, transfers_n

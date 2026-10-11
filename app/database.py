@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -213,6 +214,25 @@ def sync_default_countries(db) -> None:
     db.commit()
 
 
+def _using_postgres() -> bool:
+    return "postgres" in settings.database_url.lower()
+
+
+def _drop_legacy_garbage_tables() -> None:
+    """Neon/Postgres may contain a broken `accounts` table from a failed import."""
+    if not _using_postgres():
+        return
+    from sqlalchemy import inspect, text
+
+    names = set(inspect(engine).get_table_names())
+    legacy = {"accounts"} & names
+    if not legacy:
+        return
+    with engine.begin() as conn:
+        for table in sorted(legacy):
+            conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+
+
 def _migrate_user_columns() -> None:
     from sqlalchemy import inspect, text
 
@@ -221,13 +241,17 @@ def _migrate_user_columns() -> None:
         return
     cols = {c["name"] for c in insp.get_columns("users")}
     if "referral_credited" not in cols:
+        default = "FALSE" if _using_postgres() else "0"
         with engine.begin() as conn:
             conn.execute(
-                text("ALTER TABLE users ADD COLUMN referral_credited BOOLEAN NOT NULL DEFAULT 0")
+                text(
+                    f"ALTER TABLE users ADD COLUMN referral_credited BOOLEAN NOT NULL DEFAULT {default}"
+                )
             )
 
 
 def init_db() -> None:
+    _drop_legacy_garbage_tables()
     Base.metadata.create_all(bind=engine)
     _migrate_user_columns()
     db = SessionLocal()
@@ -249,7 +273,12 @@ def init_db() -> None:
         from app.services.startup_seed import apply_startup_seed
 
         load_persisted_admins(db)
-        apply_startup_seed(db)
+        try:
+            apply_startup_seed(db)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Startup seed import failed; bot will still run"
+            )
         bootstrap_admin_points(db)
     finally:
         db.close()
