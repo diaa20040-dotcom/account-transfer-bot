@@ -46,6 +46,10 @@ class Settings(BaseSettings):
         default="diaa20040-dotcom/account-transfer-bot",
         validation_alias=AliasChoices("GITHUB_REPO", "GITHUB_REPOSITORY"),
     )
+    github_backup_branch: str = Field(
+        default="main",
+        validation_alias=AliasChoices("GITHUB_BACKUP_BRANCH",),
+    )
 
     @property
     def admin_ids(self) -> list[int]:

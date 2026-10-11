@@ -32,7 +32,26 @@ def github_backup_configured() -> bool:
     return bool(_token() and _repo())
 
 
+def fetch_seed_public_raw() -> dict[str, Any] | None:
+    """Public repo: no token needed (for Render restore after restart)."""
+    repo = _repo()
+    if not repo or "/" not in repo:
+        return None
+    owner, name = repo.split("/", 1)
+    branch = (settings.github_backup_branch or "main").strip() or "main"
+    url = f"https://raw.githubusercontent.com/{owner}/{name}/{branch}/{SEED_PATH}"
+    try:
+        with urllib.request.urlopen(url, timeout=25) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        logger.debug("Public raw seed fetch failed", exc_info=True)
+    return None
+
+
 def fetch_seed_from_github() -> dict[str, Any] | None:
+    public = fetch_seed_public_raw()
+    if public:
+        return public
     if not github_backup_configured():
         return None
     owner, name = _repo().split("/", 1)

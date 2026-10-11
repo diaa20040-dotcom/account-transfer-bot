@@ -17,7 +17,12 @@ logger = logging.getLogger(__name__)
 
 def apply_startup_seed(db: Session, force: bool = False) -> bool:
     """Auto-restore only on a completely empty database (fresh deploy). No old seed overwrite."""
+    from app.config import settings
+    from app.services.github_seed_sync import fetch_seed_from_github
+
     payload = load_seed_payload()
+    if not payload and settings.public_url.strip():
+        payload = fetch_seed_from_github()
     if not payload:
         return False
     if force:
