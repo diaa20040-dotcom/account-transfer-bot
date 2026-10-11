@@ -11,6 +11,7 @@ from app.database import (
     engine,
     AppSetting,
     BoxGame,
+    Country,
     PromoCode,
     PromoRedemption,
     Task,
@@ -53,6 +54,16 @@ def build_backup_payload(db: Session) -> dict[str, Any]:
                 "sort_order": t.sort_order,
             }
             for t in db.query(Task).all()
+        ],
+        "countries": [
+            {
+                "name_ar": c.name_ar,
+                "name_en": c.name_en,
+                "point_cost": c.point_cost,
+                "active": c.active,
+                "sort_order": c.sort_order,
+            }
+            for c in db.query(Country).order_by(Country.sort_order).all()
         ],
         "transfers": [
             {
@@ -197,6 +208,21 @@ def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, in
             existing.value = str(value)
         else:
             db.add(AppSetting(key=key, value=str(value)))
+
+    backup_countries = payload.get("countries") or []
+    if backup_countries:
+        db.query(TransferRequest).delete()
+        db.query(Country).delete()
+        for row in backup_countries:
+            db.add(
+                Country(
+                    name_ar=row["name_ar"],
+                    name_en=row["name_en"],
+                    point_cost=int(row.get("point_cost") or 100),
+                    active=bool(row.get("active", True)),
+                    sort_order=int(row.get("sort_order") or 0),
+                )
+            )
 
     backup_tasks = payload.get("tasks") or []
     tasks_n = 0

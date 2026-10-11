@@ -376,6 +376,9 @@ async def admin_country_cost_save(message: Message, state: FSMContext) -> None:
             c.point_cost = cost
             db.commit()
             await message.answer(f"✅ تم تحديث {c.name_ar} إلى {cost} نقطة.")
+            from app.services.snapshot_hook import snapshot_db
+
+            snapshot_db()
     finally:
         db.close()
     await state.clear()
@@ -1376,6 +1379,9 @@ async def admin_box_set_all_cost_save(message: Message, state: FSMContext) -> No
             f"✅ تم تعيين سعر **{cost}** نقطة لـ {len(games)} لعبة/صندوق.",
             parse_mode="Markdown",
         )
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
     finally:
         db.close()
     await state.clear()
@@ -1462,6 +1468,9 @@ async def admin_box_game_cost_save(message: Message, state: FSMContext) -> None:
             g.point_cost = cost
             db.commit()
             await message.answer(f"✅ تم تحديث {g.title} إلى {cost} نقطة.")
+            from app.services.snapshot_hook import snapshot_db
+
+            snapshot_db()
     finally:
         db.close()
     await state.clear()
@@ -1543,6 +1552,9 @@ async def admin_box_custom_cost_save(message: Message, state: FSMContext) -> Non
     try:
         set_setting(db, "box_custom_point_cost", str(cost))
         await message.answer(f"✅ طلب الصندوق المخصص: {cost} نقطة.")
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
     finally:
         db.close()
     await state.clear()

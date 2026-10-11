@@ -251,9 +251,6 @@ def init_db() -> None:
         load_persisted_admins(db)
         apply_startup_seed(db)
         bootstrap_admin_points(db)
-        from app.services.startup_seed import persist_runtime_snapshot
-
-        persist_runtime_snapshot(db)
     finally:
         db.close()
 

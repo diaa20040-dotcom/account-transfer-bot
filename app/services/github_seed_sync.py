@@ -83,6 +83,10 @@ def push_seed_to_github(payload: dict[str, Any], force: bool = False) -> bool:
     global _last_push_monotonic
     if not github_backup_configured():
         return False
+    users = payload.get("users") or []
+    if not force and len(users) < 5:
+        logger.warning("Refusing GitHub push: too few users (%s)", len(users))
+        return False
     now = time.monotonic()
     if not force and now - _last_push_monotonic < _PUSH_MIN_INTERVAL_SEC:
         return False
