@@ -177,6 +177,11 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
             if stars != expected:
                 await query.answer(ok=False, error_message="Price changed.")
                 return
+            from app.services.play_pass import play_pass_accepts_new
+
+            if not play_pass_accepts_new(db):
+                await query.answer(ok=False, error_message="Play Pass slots are full.")
+                return
         finally:
             db.close()
     elif parsed_runopen:
@@ -223,6 +228,11 @@ async def successful_payment(message: Message, state: FSMContext) -> None:
             if not user:
                 return
             lang = user.language
+            from app.services.play_pass import play_pass_accepts_new
+
+            if not play_pass_accepts_new(db):
+                await message.answer(t(lang, "play_pass_paid_but_full"))
+                return
         finally:
             db.close()
         await state.clear()

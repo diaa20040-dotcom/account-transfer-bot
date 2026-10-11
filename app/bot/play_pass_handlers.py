@@ -9,6 +9,12 @@ from app.database import PlayPassRequest, SessionLocal, User, get_setting
 from app.i18n import t
 from app.services.admin_access import is_admin
 from app.services.notify_admins import notify_admins
+from app.services.play_pass import (
+    play_pass_accepts_new,
+    play_pass_max_slots,
+    play_pass_slots_remaining,
+    play_pass_slots_used,
+)
 from app.services.users import get_or_create_user
 
 router = Router()
@@ -29,6 +35,21 @@ def play_pass_stars_cost(db) -> int:
         return max(1, int(get_setting(db, "play_pass_stars", str(DEFAULT_PLAY_PASS_STARS))))
     except ValueError:
         return DEFAULT_PLAY_PASS_STARS
+
+
+def _play_pass_menu_text(db, lang: str, pts: int, stars: int) -> str:
+    cap = play_pass_max_slots(db)
+    if cap > 0:
+        rem = play_pass_slots_remaining(db) or 0
+        return t(
+            lang,
+            "play_pass_choose_pay_slots",
+            points=pts,
+            stars=stars,
+            remaining=rem,
+            max=cap,
+        )
+    return t(lang, "play_pass_choose_pay", points=pts, stars=stars)
 
 
 async def send_play_pass_invoice(
@@ -54,10 +75,15 @@ async def play_pass_menu(message: Message, state: FSMContext) -> None:
             db, message.from_user.id, message.from_user.username, message.from_user.first_name
         )
         lang = user.language
+        if not play_pass_accepts_new(db):
+            cap = play_pass_max_slots(db)
+            used = play_pass_slots_used(db)
+            await message.answer(t(lang, "play_pass_full", used=used, max=cap))
+            return
         pts = play_pass_points_cost(db)
         stars = play_pass_stars_cost(db)
         await message.answer(
-            t(lang, "play_pass_choose_pay", points=pts, stars=stars),
+            _play_pass_menu_text(db, lang, pts, stars),
             reply_markup=play_pass_pay_keyboard(lang, pts, stars),
         )
     finally:
@@ -93,6 +119,13 @@ async def play_pass_pay_points(callback: CallbackQuery, state: FSMContext) -> No
             callback.from_user.first_name,
         )
         lang = user.language
+        if not play_pass_accepts_new(db):
+            cap = play_pass_max_slots(db)
+            await callback.answer(
+                t(lang, "play_pass_full", used=play_pass_slots_used(db), max=cap),
+                show_alert=True,
+            )
+            return
         cost = play_pass_points_cost(db)
         if user.points < cost:
             await callback.answer(
@@ -127,6 +160,13 @@ async def play_pass_pay_stars(callback: CallbackQuery, state: FSMContext, bot: B
             callback.from_user.first_name,
         )
         lang = user.language
+        if not play_pass_accepts_new(db):
+            cap = play_pass_max_slots(db)
+            await callback.answer(
+                t(lang, "play_pass_full", used=play_pass_slots_used(db), max=cap),
+                show_alert=True,
+            )
+            return
         stars = play_pass_stars_cost(db)
         await send_play_pass_invoice(bot, callback.message.chat.id, lang, user.id, stars)
         await callback.answer()
@@ -173,6 +213,16 @@ async def play_pass_password(message: Message, state: FSMContext, bot: Bot) -> N
             db, message.from_user.id, message.from_user.username, message.from_user.first_name
         )
         lang = user.language
+        if not play_pass_accepts_new(db):
+            cap = play_pass_max_slots(db)
+            if payment == "stars":
+                await message.answer(t(lang, "play_pass_paid_but_full"))
+            else:
+                await message.answer(
+                    t(lang, "play_pass_full", used=play_pass_slots_used(db), max=cap)
+                )
+            await state.clear()
+            return
         points_paid = 0
         stars_paid = 0
         if payment == "points":

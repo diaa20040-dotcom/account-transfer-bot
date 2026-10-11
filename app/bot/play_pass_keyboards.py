@@ -37,3 +37,20 @@ def playpass_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
+
+
+def playpass_admin_list_keyboard(page: int, has_prev: bool, has_next: bool) -> InlineKeyboardMarkup:
+    from aiogram.types import InlineKeyboardButton
+
+    nav = []
+    if has_prev:
+        nav.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:playpass:{page - 1}"))
+    if has_next:
+        nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:playpass:{page + 1}"))
+    rows = [
+        [InlineKeyboardButton(text="🔢 عدد الأماكن", callback_data="adm:playpass_slots")],
+    ]
+    if nav:
+        rows.append(nav)
+    rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)

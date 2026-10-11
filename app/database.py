@@ -284,6 +284,8 @@ def init_db() -> None:
             db.add(AppSetting(key="play_pass_points", value="40"))
         if db.query(AppSetting).filter_by(key="play_pass_stars").first() is None:
             db.add(AppSetting(key="play_pass_stars", value="20"))
+        if db.query(AppSetting).filter_by(key="play_pass_max_slots").first() is None:
+            db.add(AppSetting(key="play_pass_max_slots", value="0"))
         if db.query(AppSetting).filter_by(key="box_custom_point_cost").first() is None:
             db.add(AppSetting(key="box_custom_point_cost", value="50"))
         seed_default_box_games(db)

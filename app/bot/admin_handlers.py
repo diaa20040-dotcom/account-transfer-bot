@@ -38,13 +38,14 @@ from app.bot.admin_states import (
     AdminSetBoxCustomCost,
     AdminSetCountryCost,
     AdminSetReferral,
+    AdminSetPlayPassSlots,
     AdminSetRunOpenStars,
     AdminMandatorySub,
     AdminMessageUser,
     AdminRestoreBackup,
 )
 from app.bot.keyboards import main_menu
-from app.bot.play_pass_keyboards import playpass_status_keyboard
+from app.bot.play_pass_keyboards import playpass_admin_list_keyboard, playpass_status_keyboard
 from app.database import (
     BoxGame,
     BoxRequest,
@@ -1330,6 +1331,17 @@ async def admin_box_status(callback: CallbackQuery) -> None:
         db.close()
 
 
+def _play_pass_slots_line(db) -> str:
+    from app.services.play_pass import play_pass_max_slots, play_pass_slots_remaining, play_pass_slots_used
+
+    cap = play_pass_max_slots(db)
+    if cap <= 0:
+        return "🪑 الأماكن: غير محدود (0 = غير محدود)"
+    used = play_pass_slots_used(db)
+    rem = play_pass_slots_remaining(db) or 0
+    return f"🪑 الأماكن: {used}/{cap} مستخدم — متبقي {rem}"
+
+
 @router.callback_query(F.data.startswith("adm:playpass:"))
 async def admin_playpass_list(callback: CallbackQuery) -> None:
     if not _admin_only_callback(callback):
@@ -1339,15 +1351,20 @@ async def admin_playpass_list(callback: CallbackQuery) -> None:
     per_page = 5
     db = SessionLocal()
     try:
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+        slots_line = _play_pass_slots_line(db)
         q = db.query(PlayPassRequest).order_by(desc(PlayPassRequest.created_at))
         total = q.count()
         items = q.offset(page * per_page).limit(per_page).all()
+        has_prev = page > 0
+        has_next = (page + 1) * per_page < total
         if not items:
-            text = "لا توجد طلبات Play Pass."
-            kb = admin_main_inline()
+            text = f"👨‍👩‍👧 Play Pass\n{slots_line}\n\nلا توجد طلبات."
+            kb = playpass_admin_list_keyboard(page, has_prev, has_next)
         else:
             pages = max(1, (total - 1) // per_page + 1)
-            lines = [f"👨‍👩‍👧 Play Pass ({page + 1}/{pages})"]
+            lines = [f"👨‍👩‍👧 Play Pass ({page + 1}/{pages})", slots_line]
             for r in items:
                 pay = f"{r.points_paid} نقطة" if r.points_paid else f"{r.stars_paid} نجوم"
                 lines.append(
@@ -1358,25 +1375,69 @@ async def admin_playpass_list(callback: CallbackQuery) -> None:
                     f"🔑 {r.account_password}"
                 )
             text = "\n".join(lines)
-            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-            nav = []
-            if page > 0:
-                nav.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:playpass:{page - 1}"))
-            if (page + 1) * per_page < total:
-                nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:playpass:{page + 1}"))
             rows = [
                 [InlineKeyboardButton(text=f"⚙️ #{r.id}", callback_data=f"adm:ppreq:{r.id}")]
                 for r in items
             ]
-            if nav:
-                rows.append(nav)
-            rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
-            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+            footer = playpass_admin_list_keyboard(page, has_prev, has_next)
+            kb = InlineKeyboardMarkup(inline_keyboard=rows + footer.inline_keyboard)
         await callback.message.edit_text(text, reply_markup=kb)
     finally:
         db.close()
     await callback.answer()
+
+
+@router.callback_query(F.data == "adm:playpass_slots")
+async def admin_playpass_slots(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        from app.services.play_pass import play_pass_max_slots, play_pass_slots_used
+
+        cap = play_pass_max_slots(db)
+        used = play_pass_slots_used(db)
+        cap_label = "غير محدود" if cap <= 0 else str(cap)
+    finally:
+        db.close()
+    await state.set_state(AdminSetPlayPassSlots.waiting_slots)
+    await callback.message.answer(
+        f"🪑 Play Pass — الأماكن\n"
+        f"المستخدم حالياً: {used}\n"
+        f"الحد الأقصى: {cap_label}\n\n"
+        "أرسل عدد الأماكن الكلي (مثلاً 5).\n"
+        "أرسل **0** لجعلها غير محدودة.",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminSetPlayPassSlots.waiting_slots, F.text)
+async def admin_playpass_slots_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        slots = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if slots < 0:
+        await message.answer("استخدم 0 أو أكثر.")
+        return
+    db = SessionLocal()
+    try:
+        set_setting(db, "play_pass_max_slots", str(slots))
+        from app.services.play_pass import play_pass_slots_remaining, play_pass_slots_used
+
+        used = play_pass_slots_used(db)
+        if slots <= 0:
+            await message.answer("✅ Play Pass: أماكن غير محدودة.")
+        else:
+            rem = play_pass_slots_remaining(db) or 0
+            await message.answer(f"✅ الحد: {slots} مكان — مستخدم {used} — متبقي {rem}.")
+    finally:
+        db.close()
+    await state.clear()
 
 
 @router.callback_query(F.data.startswith("adm:ppreq:"))
