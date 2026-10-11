@@ -12,6 +12,7 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="📦 طلبات الصناديق", callback_data="adm:boxes:0"),
                 InlineKeyboardButton(text="🔓 فتح التشغيل", callback_data="adm:runopen:0"),
             ],
+            [InlineKeyboardButton(text="👨‍👩‍👧 Play Pass", callback_data="adm:playpass:0")],
             [
                 InlineKeyboardButton(text="💰 أسعار الصناديق", callback_data="adm:box_pricing"),
                 InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),

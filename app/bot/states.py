@@ -22,5 +22,10 @@ class RunOpenStates(StatesGroup):
     entering_password = State()
 
 
+class PlayPassStates(StatesGroup):
+    entering_name = State()
+    entering_password = State()
+
+
 class PromoStates(StatesGroup):
     entering_code = State()

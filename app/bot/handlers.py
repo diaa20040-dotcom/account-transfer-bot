@@ -37,6 +37,7 @@ def _lang_btn_values() -> set[str]:
         "btn_tasks",
         "btn_referral",
         "btn_run_open",
+        "btn_play_pass",
         "btn_language",
         "btn_points",
         "btn_topup",

@@ -148,6 +148,22 @@ class PromoRedemption(Base):
     promo: Mapped[PromoCode] = relationship()
 
 
+class PlayPassRequest(Base):
+    __tablename__ = "play_pass_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    account_name: Mapped[str] = mapped_column(String(255))
+    account_password: Mapped[str] = mapped_column(Text)
+    points_paid: Mapped[int] = mapped_column(Integer, default=0)
+    stars_paid: Mapped[int] = mapped_column(Integer, default=0)
+    payment_method: Mapped[str] = mapped_column(String(16), default="points")
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[User] = relationship()
+
+
 class RunOpenRequest(Base):
     __tablename__ = "run_open_requests"
 
@@ -264,6 +280,10 @@ def init_db() -> None:
             db.add(AppSetting(key="bot_maintenance_enabled", value="0"))
         if db.query(AppSetting).filter_by(key="run_open_stars").first() is None:
             db.add(AppSetting(key="run_open_stars", value="10"))
+        if db.query(AppSetting).filter_by(key="play_pass_points").first() is None:
+            db.add(AppSetting(key="play_pass_points", value="40"))
+        if db.query(AppSetting).filter_by(key="play_pass_stars").first() is None:
+            db.add(AppSetting(key="play_pass_stars", value="20"))
         if db.query(AppSetting).filter_by(key="box_custom_point_cost").first() is None:
             db.add(AppSetting(key="box_custom_point_cost", value="50"))
         seed_default_box_games(db)

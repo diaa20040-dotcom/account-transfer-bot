@@ -13,6 +13,7 @@ def main_menu(lang: str, is_admin: bool = False) -> ReplyKeyboardMarkup:
             KeyboardButton(text=t(lang, "btn_referral")),
         ],
         [KeyboardButton(text=t(lang, "btn_run_open"))],
+        [KeyboardButton(text=t(lang, "btn_play_pass"))],
         [
             KeyboardButton(text=t(lang, "btn_points")),
             KeyboardButton(text=t(lang, "btn_topup")),

@@ -44,12 +44,14 @@ from app.bot.admin_states import (
     AdminRestoreBackup,
 )
 from app.bot.keyboards import main_menu
+from app.bot.play_pass_keyboards import playpass_status_keyboard
 from app.database import (
     BoxGame,
     BoxRequest,
     Country,
     PromoCode,
     PromoRedemption,
+    PlayPassRequest,
     RunOpenRequest,
     SessionLocal,
     Task,
@@ -1322,6 +1324,110 @@ async def admin_box_status(callback: CallbackQuery) -> None:
                 f"الحساب: {r.account_name}"
             )
             await callback.message.edit_text(text, reply_markup=box_status_keyboard(r.id))
+        else:
+            await callback.answer("غير موجود", show_alert=True)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("adm:playpass:"))
+async def admin_playpass_list(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    page = int(callback.data.split(":")[-1])
+    per_page = 5
+    db = SessionLocal()
+    try:
+        q = db.query(PlayPassRequest).order_by(desc(PlayPassRequest.created_at))
+        total = q.count()
+        items = q.offset(page * per_page).limit(per_page).all()
+        if not items:
+            text = "لا توجد طلبات Play Pass."
+            kb = admin_main_inline()
+        else:
+            pages = max(1, (total - 1) // per_page + 1)
+            lines = [f"👨‍👩‍👧 Play Pass ({page + 1}/{pages})"]
+            for r in items:
+                pay = f"{r.points_paid} نقطة" if r.points_paid else f"{r.stars_paid} نجوم"
+                lines.append(
+                    f"\n#{r.id} | {r.status}\n"
+                    f"👤 {r.user.telegram_id} @{r.user.username or '—'}\n"
+                    f"💳 {pay}\n"
+                    f"📧 {r.account_name}\n"
+                    f"🔑 {r.account_password}"
+                )
+            text = "\n".join(lines)
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:playpass:{page - 1}"))
+            if (page + 1) * per_page < total:
+                nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:playpass:{page + 1}"))
+            rows = [
+                [InlineKeyboardButton(text=f"⚙️ #{r.id}", callback_data=f"adm:ppreq:{r.id}")]
+                for r in items
+            ]
+            if nav:
+                rows.append(nav)
+            rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:ppreq:"))
+async def admin_playpass_detail(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    req_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        r = db.query(PlayPassRequest).filter_by(id=req_id).first()
+        if not r:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        pay = f"{r.points_paid} نقطة" if r.points_paid else f"{r.stars_paid} نجوم"
+        text = (
+            f"Play Pass #{r.id}\n"
+            f"الحالة: {r.status}\n"
+            f"المستخدم: {r.user.telegram_id} @{r.user.username or '—'}\n"
+            f"الدفع: {pay}\n"
+            f"الحساب: {r.account_name}\n"
+            f"كلمة المرور: {r.account_password}"
+        )
+        await callback.message.edit_text(text, reply_markup=playpass_status_keyboard(req_id))
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:ppst:"))
+async def admin_playpass_status(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    _, _, req_id, status = callback.data.split(":", 3)
+    db = SessionLocal()
+    try:
+        r = db.query(PlayPassRequest).filter_by(id=int(req_id)).first()
+        if r:
+            r.status = status
+            db.commit()
+            await callback.answer(f"تم: {status}", show_alert=True)
+            pay = f"{r.points_paid} نقطة" if r.points_paid else f"{r.stars_paid} نجوم"
+            text = (
+                f"Play Pass #{r.id}\n"
+                f"الحالة: {r.status}\n"
+                f"المستخدم: {r.user.telegram_id}\n"
+                f"الدفع: {pay}\n"
+                f"الحساب: {r.account_name}"
+            )
+            await callback.message.edit_text(text, reply_markup=playpass_status_keyboard(r.id))
         else:
             await callback.answer("غير موجود", show_alert=True)
     finally:
