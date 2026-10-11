@@ -390,6 +390,22 @@
       "sort_order": 0
     }
   ],
+  "countries": [
+    {
+      "name_ar": "امريكا",
+      "name_en": "America",
+      "point_cost": 3,
+      "active": true,
+      "sort_order": 1
+    },
+    {
+      "name_ar": "ياباني",
+      "name_en": "Japan",
+      "point_cost": 3,
+      "active": true,
+      "sort_order": 2
+    }
+  ],
   "transfers": [
     {
       "user_telegram_id": 8823377492,
