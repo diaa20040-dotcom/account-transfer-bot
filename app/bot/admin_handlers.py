@@ -38,14 +38,21 @@ from app.bot.admin_states import (
     AdminSetBoxCustomCost,
     AdminSetCountryCost,
     AdminSetReferral,
+    AdminBanUser,
     AdminSetPlayPassSlots,
+    AdminSetPlayPassStars,
     AdminSetRunOpenStars,
     AdminMandatorySub,
     AdminMessageUser,
     AdminRestoreBackup,
 )
 from app.bot.keyboards import main_menu
-from app.bot.play_pass_keyboards import playpass_admin_list_keyboard, playpass_status_keyboard
+from app.bot.play_pass_keyboards import (
+    playpass_admin_list_keyboard,
+    playpass_admin_settings_keyboard,
+    playpass_status_keyboard,
+    user_admin_profile_keyboard,
+)
 from app.database import (
     BoxGame,
     BoxRequest,
@@ -701,6 +708,109 @@ async def admin_add_points_start(callback: CallbackQuery, state: FSMContext) -> 
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("adm:uprof:"))
+async def admin_user_profile(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    uid = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=uid).first()
+        if not user:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        status = "🚫 محظور" if user.is_banned else "✅ نشط"
+        text = (
+            f"👤 مستخدم\n"
+            f"المعرّف: {user.telegram_id}\n"
+            f"@{user.username or '—'}\n"
+            f"النقاط: {user.points}\n"
+            f"الحالة: {status}"
+        )
+        await callback.message.edit_text(
+            text,
+            reply_markup=user_admin_profile_keyboard(user.id, user.is_banned),
+        )
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:uban:"))
+async def admin_user_ban_toggle(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    parts = callback.data.split(":")
+    uid = int(parts[2])
+    ban = parts[3] == "1"
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=uid).first()
+        if not user:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        if is_admin(user.telegram_id, user.username):
+            await callback.answer("لا يمكن حظر إداري", show_alert=True)
+            return
+        user.is_banned = ban
+        db.commit()
+        status = "🚫 محظور" if user.is_banned else "✅ نشط"
+        text = (
+            f"👤 مستخدم\n"
+            f"المعرّف: {user.telegram_id}\n"
+            f"@{user.username or '—'}\n"
+            f"النقاط: {user.points}\n"
+            f"الحالة: {status}"
+        )
+        await callback.message.edit_text(
+            text,
+            reply_markup=user_admin_profile_keyboard(user.id, user.is_banned),
+        )
+        await callback.answer("تم الحظر" if ban else "تم إلغاء الحظر", show_alert=True)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "adm:ban_user")
+async def admin_ban_user_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminBanUser.waiting_target)
+    await callback.message.answer(
+        "🚫 **حظر مستخدم**\nأرسل **معرّف تيليجرام** (رقم) أو **@يوزرنيم**.\n"
+        "لإلغاء الحظر استخدم نفس الطريقة من ملف المستخدم أو أرسل المعرّف ثم اختر إلغاء الحظر.",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminBanUser.waiting_target, F.text)
+async def admin_ban_user_apply(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    db = SessionLocal()
+    try:
+        user = _find_user_by_target(db, message.text)
+        if not user:
+            await message.answer("لم أجد مستخدمًا. يجب أن يكون قد فتح البوت مرة واحدة.")
+            await state.clear()
+            return
+        if is_admin(user.telegram_id, user.username):
+            await message.answer("لا يمكن حظر إداري.")
+            await state.clear()
+            return
+        user.is_banned = True
+        db.commit()
+        await message.answer(
+            f"🚫 تم حظر {user.telegram_id} @{user.username or '—'}.\n"
+            "لإلغاء الحظر: /admin → المستخدمون → اختره → إلغاء الحظر.",
+            reply_markup=user_admin_profile_keyboard(user.id, True),
+        )
+    finally:
+        db.close()
+    await state.clear()
+
+
 @router.callback_query(F.data.startswith("adm:uadd:"))
 async def admin_add_points_user(callback: CallbackQuery, state: FSMContext) -> None:
     if not _admin_only_callback(callback):
@@ -893,7 +1003,8 @@ async def admin_users(callback: CallbackQuery) -> None:
         users = q.offset(page * per_page).limit(per_page).all()
         lines = ["👥 المستخدمون"]
         for u in users:
-            lines.append(f"• {u.telegram_id} @{u.username or '—'} — {u.points} نقطة")
+            flag = " 🚫" if u.is_banned else ""
+            lines.append(f"• {u.telegram_id} @{u.username or '—'} — {u.points} نقطة{flag}")
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
         nav = []
@@ -903,18 +1014,20 @@ async def admin_users(callback: CallbackQuery) -> None:
             nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:users:{page + 1}"))
         rows = []
         for u in users:
-            label = f"➕ @{u.username}" if u.username else f"➕ {u.telegram_id}"
+            prefix = "🚫" if u.is_banned else "👤"
+            label = f"{prefix} @{u.username}" if u.username else f"{prefix} {u.telegram_id}"
             rows.append(
-                [InlineKeyboardButton(text=label, callback_data=f"adm:uadd:{u.id}")]
+                [InlineKeyboardButton(text=label, callback_data=f"adm:uprof:{u.id}")]
             )
         if nav:
             rows.append(nav)
         rows.append(
             [
                 InlineKeyboardButton(text="💎 إضافة نقاط", callback_data="adm:addpoints"),
-                InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu"),
+                InlineKeyboardButton(text="🚫 حظر بالمعرّف", callback_data="adm:ban_user"),
             ]
         )
+        rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
         await callback.message.edit_text("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
     finally:
         db.close()
@@ -1427,6 +1540,7 @@ async def admin_playpass_slots_save(message: Message, state: FSMContext) -> None
     db = SessionLocal()
     try:
         set_setting(db, "play_pass_max_slots", str(slots))
+        db.commit()
         from app.services.play_pass import play_pass_slots_remaining, play_pass_slots_used
 
         used = play_pass_slots_used(db)
@@ -1438,6 +1552,105 @@ async def admin_playpass_slots_save(message: Message, state: FSMContext) -> None
     finally:
         db.close()
     await state.clear()
+
+
+def _play_pass_settings_text(db) -> str:
+    from app.services.play_pass import play_pass_max_slots, play_pass_slots_remaining, play_pass_slots_used
+
+    stars = get_setting(db, "play_pass_stars", "20")
+    cap = play_pass_max_slots(db)
+    used = play_pass_slots_used(db)
+    if cap <= 0:
+        cap_line = f"🪑 الأماكن: غير محدود — مستخدم {used}"
+    else:
+        rem = play_pass_slots_remaining(db) or 0
+        cap_line = f"🪑 الأماكن: {used}/{cap} — متبقي {rem}"
+    return f"⚙️ إعدادات Play Pass\n⭐ سعر النجوم: **{stars}**\n{cap_line}"
+
+
+@router.callback_query(F.data == "adm:playpass_cfg")
+async def admin_playpass_cfg(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        text = _play_pass_settings_text(db)
+    finally:
+        db.close()
+    await callback.message.edit_text(
+        text,
+        reply_markup=playpass_admin_settings_keyboard(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:playpass_stars")
+async def admin_playpass_stars(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        stars = get_setting(db, "play_pass_stars", "20")
+    finally:
+        db.close()
+    await state.set_state(AdminSetPlayPassStars.waiting_stars)
+    await callback.message.answer(
+        f"⭐ سعر Play Pass بالنجوم الحالي: **{stars}**\nأرسل الرقم الجديد:",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminSetPlayPassStars.waiting_stars, F.text)
+async def admin_playpass_stars_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        stars = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if stars < 1:
+        await message.answer("استخدم 1 أو أكثر.")
+        return
+    db = SessionLocal()
+    try:
+        set_setting(db, "play_pass_stars", str(stars))
+        db.commit()
+        await message.answer(f"✅ Play Pass: {stars} نجوم لكل طلب.")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("adm:pp_slot:"))
+async def admin_playpass_slot_delta(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    delta = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        from app.services.play_pass import adjust_play_pass_max_slots, play_pass_slots_used
+
+        new_cap, err = adjust_play_pass_max_slots(db, delta)
+        if err == "unlimited":
+            await callback.answer("الأماكن غير محدودة — استخدم «تعيين عدد» أو ➕ مكان", show_alert=True)
+            return
+        used = play_pass_slots_used(db)
+        if new_cap <= 0:
+            cap_msg = "غير محدود"
+        else:
+            cap_msg = f"{used}/{new_cap}"
+        text = _play_pass_settings_text(db)
+        await callback.message.edit_text(
+            text,
+            reply_markup=playpass_admin_settings_keyboard(),
+            parse_mode="Markdown",
+        )
+        await callback.answer(f"تم — الأماكن: {cap_msg}", show_alert=True)
+    finally:
+        db.close()
 
 
 @router.callback_query(F.data.startswith("adm:ppreq:"))

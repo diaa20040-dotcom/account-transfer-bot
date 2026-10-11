@@ -19,6 +19,7 @@ from app.bot.promo_handlers import router as promo_router
 from app.bot.play_pass_handlers import router as play_pass_router
 from app.bot.run_open_handlers import router as run_open_router
 from app.bot.middlewares import (
+    BannedUserMiddleware,
     MaintenanceMiddleware,
     MandatorySubMiddleware,
     PrivateChatsOnlyMiddleware,
@@ -46,6 +47,8 @@ def build_dispatcher() -> Dispatcher:
     dp = Dispatcher(storage=MemoryStorage())
     dp.message.middleware(PrivateChatsOnlyMiddleware())
     dp.callback_query.middleware(PrivateChatsOnlyMiddleware())
+    dp.message.middleware(BannedUserMiddleware())
+    dp.callback_query.middleware(BannedUserMiddleware())
     dp.message.middleware(MandatorySubMiddleware())
     dp.callback_query.middleware(MandatorySubMiddleware())
     dp.message.middleware(MaintenanceMiddleware())

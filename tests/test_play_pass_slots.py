@@ -22,9 +22,14 @@ def test_play_pass_slots_count_and_full():
     db = SessionLocal()
     try:
         set_setting(db, "play_pass_max_slots", "2")
-        user = User(telegram_id=999001, username="t", first_name="T", language="ar", points=100)
-        db.add(user)
-        db.commit()
+        user = db.query(User).filter_by(telegram_id=999001).first()
+        if not user:
+            user = User(telegram_id=999001, username="t", first_name="T", language="ar", points=100)
+            db.add(user)
+            db.commit()
+        else:
+            db.query(PlayPassRequest).filter_by(user_id=user.id).delete()
+            db.commit()
         db.add(
             PlayPassRequest(
                 user_id=user.id,

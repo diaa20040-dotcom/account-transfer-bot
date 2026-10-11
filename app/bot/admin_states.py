@@ -51,6 +51,14 @@ class AdminSetPlayPassSlots(StatesGroup):
     waiting_slots = State()
 
 
+class AdminSetPlayPassStars(StatesGroup):
+    waiting_stars = State()
+
+
+class AdminBanUser(StatesGroup):
+    waiting_target = State()
+
+
 class AdminSetBoxCustomCost(StatesGroup):
     waiting_cost = State()
 

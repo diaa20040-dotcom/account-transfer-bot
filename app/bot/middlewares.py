@@ -43,6 +43,41 @@ def _user_from_event(event: TelegramObject) -> tuple[int, str | None] | None:
     return None
 
 
+class BannedUserMiddleware(BaseMiddleware):
+    """Block banned users (admins always pass)."""
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        user_info = _user_from_event(event)
+        if user_info is None:
+            return await handler(event, data)
+
+        telegram_id, username = user_info
+        if is_admin(telegram_id, username):
+            return await handler(event, data)
+
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter_by(telegram_id=telegram_id).first()
+            if not user or not user.is_banned:
+                return await handler(event, data)
+            lang = user.language
+        finally:
+            db.close()
+
+        if isinstance(event, CallbackQuery):
+            await event.answer(t(lang, "user_banned"), show_alert=True)
+            return None
+        if isinstance(event, Message):
+            await event.answer(t(lang, "user_banned"))
+            return None
+        return None
+
+
 class MandatorySubMiddleware(BaseMiddleware):
     """Block bot usage until the user joins the configured mandatory channel."""
 

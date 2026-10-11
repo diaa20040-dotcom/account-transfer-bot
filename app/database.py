@@ -43,6 +43,7 @@ class User(Base):
     points: Mapped[int] = mapped_column(Integer, default=0)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     referral_credited: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     referred_by: Mapped["User | None"] = relationship(remote_side=[id])
@@ -263,6 +264,13 @@ def _migrate_user_columns() -> None:
                 text(
                     f"ALTER TABLE users ADD COLUMN referral_credited BOOLEAN NOT NULL DEFAULT {default}"
                 )
+            )
+    cols = {c["name"] for c in insp.get_columns("users")}
+    if "is_banned" not in cols:
+        default = "FALSE" if _using_postgres() else "0"
+        with engine.begin() as conn:
+            conn.execute(
+                text(f"ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT {default}")
             )
 
 

@@ -36,6 +36,7 @@ def build_backup_payload(db: Session) -> dict[str, Any]:
                 "language": u.language,
                 "username": u.username,
                 "referral_credited": bool(u.referral_credited),
+                "is_banned": bool(getattr(u, "is_banned", False)),
                 "referred_by_telegram_id": (
                     u.referred_by.telegram_id if u.referred_by else None
                 ),
@@ -179,6 +180,7 @@ def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, in
                 language=lang,
                 username=username,
                 referral_credited=bool(row.get("referral_credited", False)),
+                is_banned=bool(row.get("is_banned", False)),
             )
             db.add(user)
             db.flush()
@@ -188,6 +190,8 @@ def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, in
             if username:
                 user.username = username
             user.referral_credited = bool(row.get("referral_credited", user.referral_credited))
+            if "is_banned" in row:
+                user.is_banned = bool(row.get("is_banned"))
         id_by_tid[tid] = user.id
         users_n += 1
 
