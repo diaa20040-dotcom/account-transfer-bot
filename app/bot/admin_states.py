@@ -60,3 +60,7 @@ class AdminAddPromo(StatesGroup):
     code = State()
     points = State()
     max_uses = State()
+
+
+class AdminBroadcast(StatesGroup):
+    waiting_content = State()

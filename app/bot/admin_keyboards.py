@@ -31,6 +31,7 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="➕ برومو جديد", callback_data="adm:promo_new"),
             ],
             [InlineKeyboardButton(text="💎 إضافة نقاط لمستخدم", callback_data="adm:addpoints")],
+            [InlineKeyboardButton(text="📣 إذاعة للمستخدمين", callback_data="adm:broadcast")],
             [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
             [
                 InlineKeyboardButton(text="📥 نسخة احتياطية", callback_data="adm:backup"),
@@ -283,6 +284,18 @@ def maintenance_admin_keyboard(enabled: bool) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="⭐ نجوم فتح التشغيل", callback_data="adm:runopen_stars"),
             ],
             [InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")],
+        ]
+    )
+
+
+def broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ إرسال للجميع", callback_data="adm:broadcast_send"),
+                InlineKeyboardButton(text="❌ إلغاء", callback_data="adm:broadcast_cancel"),
+            ],
+            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
 

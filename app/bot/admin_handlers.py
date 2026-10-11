@@ -11,6 +11,7 @@ from app.bot.admin_keyboards import (
     ADMIN_BTN_AR,
     ADMIN_BTN_EN,
     admin_main_inline,
+    broadcast_confirm_keyboard,
     box_game_actions_keyboard,
     box_games_admin_keyboard,
     box_pricing_admin_keyboard,
@@ -31,6 +32,7 @@ from app.bot.admin_states import (
     AdminAddPromo,
     AdminAddPoints,
     AdminAddTask,
+    AdminBroadcast,
     AdminSetAllBoxCost,
     AdminSetBoxCost,
     AdminSetBoxCustomCost,
@@ -66,6 +68,7 @@ from app.services.mandatory_sub import (
     get_mandatory_sub_config,
 )
 from app.services.backup_export import backup_json_bytes, import_backup_payload
+from app.services.broadcast import broadcast_message
 from app.services.user_notify import notify_transfer_status, send_admin_message_to_user
 from app.services.users import get_or_create_user
 
@@ -764,6 +767,114 @@ async def admin_add_points_amount(message: Message, state: FSMContext, bot: Bot)
     finally:
         db.close()
     await state.clear()
+
+
+@router.callback_query(F.data == "adm:broadcast")
+async def admin_broadcast_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    await state.set_state(AdminBroadcast.waiting_content)
+    await callback.message.answer(
+        "📣 **إذاعة للمستخدمين**\n\n"
+        "أرسل **نصًا** أو **صورة** (مع أو بدون تعليق) سيصل لكل من سجّل في البوت.\n"
+        "أرسل `/cancel` للإلغاء.",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:broadcast_cancel")
+async def admin_broadcast_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.clear()
+    await callback.message.edit_text("تم إلغاء الإذاعة.", reply_markup=admin_main_inline())
+    await callback.answer()
+
+
+@router.message(AdminBroadcast.waiting_content)
+async def admin_broadcast_preview(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    if message.text and message.text.strip().lower() == "/cancel":
+        await state.clear()
+        await message.answer("تم الإلغاء.", reply_markup=admin_main_inline())
+        return
+
+    photo_id = None
+    text = None
+    if message.photo:
+        photo_id = message.photo[-1].file_id
+        text = (message.caption or "").strip()
+    elif message.text:
+        text = message.text.strip()
+    else:
+        await message.answer("أرسل نصًا أو صورة فقط.")
+        return
+
+    if not photo_id and not text:
+        await message.answer("الرسالة فاضية. أرسل نصًا أو صورة بتعليق.")
+        return
+
+    await state.update_data(
+        bc_photo=photo_id,
+        bc_text=text,
+    )
+    db = SessionLocal()
+    try:
+        total = db.query(User).count()
+    finally:
+        db.close()
+
+    preview = text[:400] + ("…" if text and len(text) > 400 else "")
+    kind = "🖼 صورة" if photo_id else "📝 نص"
+    await message.answer(
+        f"**معاينة الإذاعة** ({kind})\n\n"
+        f"{preview or '—'}\n\n"
+        f"سيُرسل إلى **{total}** مستخدم.\n"
+        "تأكيد الإرسال؟",
+        parse_mode="Markdown",
+        reply_markup=broadcast_confirm_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "adm:broadcast_send")
+async def admin_broadcast_send(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    data = await state.get_data()
+    photo_id = data.get("bc_photo")
+    text = data.get("bc_text") or ""
+    if not photo_id and not text.strip():
+        await callback.answer("لا توجد رسالة. ابدأ من جديد.", show_alert=True)
+        await state.clear()
+        return
+
+    await callback.message.edit_text("⏳ جاري الإرسال… قد يستغرق دقائق حسب عدد المستخدمين.")
+    await callback.answer()
+
+    db = SessionLocal()
+    try:
+        total, ok, failed = await broadcast_message(
+            bot,
+            db,
+            text=text if not photo_id else None,
+            photo_file_id=photo_id,
+            caption=text if photo_id else None,
+        )
+    finally:
+        db.close()
+    await state.clear()
+    await callback.message.answer(
+        f"📣 **انتهت الإذاعة**\n"
+        f"• المسجّلين: {total}\n"
+        f"• وصلت: {ok}\n"
+        f"• فشل (حظر / لم يفتح البوت): {failed}",
+        parse_mode="Markdown",
+        reply_markup=admin_main_inline(),
+    )
 
 
 @router.callback_query(F.data.startswith("adm:users:"))
