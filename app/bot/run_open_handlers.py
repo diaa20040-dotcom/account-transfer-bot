@@ -101,7 +101,7 @@ async def run_open_password(message: Message, state: FSMContext, bot: Bot) -> No
         db.refresh(req)
 
         admin_text = (
-            f"🔓 فتح نقاط تشغيل #{req.id}\n"
+            f"🎁 جائزة أسبوعية #{req.id}\n"
             f"المستخدم: {user.telegram_id} @{user.username or '—'}\n"
             f"النجوم المدفوعة: {stars}\n"
             f"الحساب: {req.account_name}\n"
