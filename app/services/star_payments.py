@@ -2,12 +2,95 @@ import logging
 from datetime import timedelta
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy.orm import Session
 
 from app.database import PlayPassRequest, RunOpenRequest, StarPayment, User
 from app.i18n import t
 
 logger = logging.getLogger(__name__)
+
+
+def admin_refund_feedback(ok: bool, detail: str, stars: int, telegram_id: int) -> str:
+    if not ok:
+        hints = {
+            "missing_charge_id": (
+                "لا يوجد معرّف دفع محفوظ لهذا السجل. افتح الطلب القديم والصق "
+                "telegram_payment_charge_id من تفاصيل الدفع في تيليجرام."
+            ),
+            "already_refunded_db": (
+                "السجل يقول «مُسترد» — إن النجوم لم تصل للمستخدم، راجع رصيد البوت "
+                "(يجب أن يكون فيه نجوم كافية ولم تُسحب من Fragment)."
+            ),
+            "empty_charge_id": "أرسل telegram_payment_charge_id كاملاً (ليس رقم المعاملة من إعدادات النجوم فقط).",
+            "api_failed": "تيليجرام رفض الاسترداد — تأكد من charge id وصاحب الدفع ورصيد نجوم البوت.",
+        }
+        return hints.get(detail, detail)
+    if detail == "synced_telegram":
+        return (
+            f"✅ الدفع كان مُسترداً مسبقاً في تيليجرام — تم مزامنة السجل.\n"
+            f"المستخدم: {telegram_id}"
+        )
+    return (
+        f"✅ تم طلب الاسترداد من تيليجرام: **{stars}** نجمة → المستخدم {telegram_id}.\n"
+        f"يجب أن تُخصم من رصيد البوت وتظهر في «نجومي» للمستخدم خلال ثوانٍ."
+    )
+
+
+def refund_error_message_ar(exc: Exception) -> str:
+    text = str(exc)
+    upper = text.upper()
+    if "CHARGE_ALREADY_REFUNDED" in upper:
+        return "هذا الدفع مُسترد مسبقاً في تيليجرام."
+    if "CHARGE_ID_EMPTY" in upper or "CHARGE_ID_INVALID" in upper:
+        return "معرّف الدفع فارغ أو غير صحيح."
+    if "USER_ID_INVALID" in upper:
+        return "معرّف المستخدم لا يطابق من دفع."
+    if "PAYMENT" in upper and "NOT_FOUND" in upper:
+        return "لم يُعثر على الدفع — تأكد من charge id ومن أن الدفع على نفس البوت."
+    return text[:220]
+
+
+async def telegram_refund_stars(
+    bot: Bot, telegram_user_id: int, charge_id: str
+) -> tuple[bool, str, bool]:
+    """
+    Call refundStarPayment. Returns (success, detail, already_refunded_on_telegram).
+    """
+    charge_id = (charge_id or "").strip()
+    if not charge_id:
+        return False, "empty_charge_id", False
+    try:
+        ok = await bot.refund_star_payment(
+            user_id=telegram_user_id,
+            telegram_payment_charge_id=charge_id,
+        )
+    except TelegramBadRequest as exc:
+        msg = refund_error_message_ar(exc)
+        already = "CHARGE_ALREADY_REFUNDED" in str(exc).upper()
+        logger.warning(
+            "refundStarPayment rejected user=%s charge=%s… err=%s",
+            telegram_user_id,
+            charge_id[:12],
+            exc,
+        )
+        return False, msg, already
+    except Exception as exc:
+        logger.exception("refundStarPayment failed user=%s", telegram_user_id)
+        return False, str(exc)[:220], False
+    if not ok:
+        logger.error(
+            "refundStarPayment returned false user=%s charge=%s…",
+            telegram_user_id,
+            charge_id[:12],
+        )
+        return False, "api_failed", False
+    logger.info(
+        "refundStarPayment ok user=%s stars_charge=%s…",
+        telegram_user_id,
+        charge_id[:12],
+    )
+    return True, "ok", False
 
 
 def payment_kind_from_payload(payload: str) -> str:
@@ -142,20 +225,16 @@ async def refund_star_payment_record(
     bot: Bot, db: Session, payment: StarPayment
 ) -> tuple[bool, str]:
     if payment.refunded:
-        return False, "already_refunded"
+        return False, "already_refunded_db"
     user = db.query(User).filter_by(id=payment.user_id).first()
     if not user:
         return False, "no_user"
-    try:
-        ok = await bot.refund_star_payment(
-            user_id=user.telegram_id,
-            telegram_payment_charge_id=payment.telegram_payment_charge_id,
-        )
-    except Exception as exc:
-        logger.exception("refund_star_payment failed id=%s", payment.id)
-        return False, str(exc)
-    if not ok:
-        return False, "api_failed"
+    charge_id = (payment.telegram_payment_charge_id or "").strip()
+    if not charge_id:
+        return False, "missing_charge_id"
+    ok, detail, already_tg = await telegram_refund_stars(bot, user.telegram_id, charge_id)
+    if not ok and not already_tg:
+        return False, detail
     payment.refunded = True
     if payment.payment_kind == "topup":
         user.points = max(0, user.points - payment.stars_amount)
@@ -174,6 +253,8 @@ async def refund_star_payment_record(
         )
     except Exception:
         pass
+    if already_tg:
+        return True, "synced_telegram"
     return True, "ok"
 
 
@@ -191,18 +272,11 @@ async def refund_stars_by_charge_id(
     existing = db.query(StarPayment).filter_by(telegram_payment_charge_id=charge_id).first()
     if existing:
         if existing.refunded:
-            return False, "already_refunded"
+            return False, "already_refunded_db"
         return await refund_star_payment_record(bot, db, existing)
-    try:
-        ok = await bot.refund_star_payment(
-            user_id=user.telegram_id,
-            telegram_payment_charge_id=charge_id,
-        )
-    except Exception as exc:
-        logger.exception("refund by charge_id failed user=%s", user.telegram_id)
-        return False, str(exc)
-    if not ok:
-        return False, "api_failed"
+    ok, detail, already_tg = await telegram_refund_stars(bot, user.telegram_id, charge_id)
+    if not ok and not already_tg:
+        return False, detail
     row = StarPayment(
         user_id=user.id,
         stars_amount=stars,
@@ -226,4 +300,6 @@ async def refund_stars_by_charge_id(
         )
     except Exception:
         pass
+    if already_tg:
+        return True, "synced_telegram"
     return True, "ok"

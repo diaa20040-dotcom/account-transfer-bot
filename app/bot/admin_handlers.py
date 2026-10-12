@@ -94,6 +94,7 @@ from app.services.order_discussion import (
     order_user,
 )
 from app.services.star_payments import (
+    admin_refund_feedback,
     match_payment_to_request,
     payment_kind_label,
     refund_star_payment_record,
@@ -991,6 +992,8 @@ async def admin_stars_refund_menu(callback: CallbackQuery) -> None:
         "↩️ **استرداد النجوم**\n\n"
         "• **كل طلبات النجوم**: كل الطلبات القديمة والجديدة (جائزة أسبوعية، Play Pass، شحن).\n"
         "• **بحث بمعرّف**: عرض طلبات مستخدم واحد.\n\n"
+        "الاسترداد الحقيقي يتم عبر تيليجرام: النجوم تُخصم من رصيد **البوت** وتُعاد للمستخدم.\n"
+        "إذا سحبت نجوم البوت إلى Fragment أو الرصيد غير كافٍ، الاسترداد يفشل.\n\n"
         "_ملاحظة: هذا مختلف عن «استعادة نسخة» (النسخ الاحتياطي)._",
         reply_markup=stars_refund_menu_keyboard(),
         parse_mode="Markdown",
@@ -1104,13 +1107,16 @@ async def admin_order_stars_refund(
         ok, detail = await refund_star_payment_record(bot, db, payment)
         if ok:
             mark_request_stars_refunded(db, kind, req_id)
-            await callback.answer("تم الاسترداد", show_alert=True)
+            await callback.answer("تم الاسترداد في تيليجرام", show_alert=True)
             await callback.message.answer(
-                f"✅ استرداد {req.stars_paid} نجوم لطلب {kind} #{req_id} "
-                f"(مستخدم {req.user.telegram_id})."
+                admin_refund_feedback(ok, detail, req.stars_paid, req.user.telegram_id),
+                parse_mode="Markdown",
             )
         else:
-            await callback.answer(f"فشل: {detail[:160]}", show_alert=True)
+            await callback.answer(
+                admin_refund_feedback(ok, detail, req.stars_paid, req.user.telegram_id)[:180],
+                show_alert=True,
+            )
     finally:
         db.close()
 
@@ -1170,10 +1176,13 @@ async def admin_order_charge_refund_save(message: Message, state: FSMContext, bo
         if ok:
             mark_request_stars_refunded(db, kind, int(req_id))
             await message.answer(
-                f"✅ تم استرداد {req.stars_paid} نجوم للطلب #{req_id} ({kind})."
+                admin_refund_feedback(ok, detail, req.stars_paid, req.user.telegram_id),
+                parse_mode="Markdown",
             )
         else:
-            await message.answer(f"فشل الاسترداد: {detail}")
+            await message.answer(
+                "❌ " + admin_refund_feedback(ok, detail, req.stars_paid, req.user.telegram_id)
+            )
     finally:
         db.close()
     await state.clear()
@@ -1197,11 +1206,17 @@ async def admin_refund_prompt(callback: CallbackQuery) -> None:
         extra = ""
         if payment.payment_kind == "topup":
             extra = f"\nسيتم خصم {payment.stars_amount} نقطة من رصيده (شحن سابق)."
+        charge_hint = ""
+        cid = (payment.telegram_payment_charge_id or "").strip()
+        if cid:
+            charge_hint = f"\nCharge: `{cid[:20]}…`"
+        elif payment.payment_kind != "topup":
+            charge_hint = "\n⚠️ لا يوجد charge id محفوظ — قد تحتاج لصقه يدوياً."
         text = (
-            f"تأكيد استرداد **{payment.stars_amount}** نجمة؟\n"
+            f"تأكيد استرداد **{payment.stars_amount}** نجمة عبر تيليجرام؟\n"
             f"النوع: {label}\n"
             f"المستخدم: {user.telegram_id} @{user.username or '—'}"
-            f"{extra}"
+            f"{extra}{charge_hint}"
         )
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -1234,13 +1249,14 @@ async def admin_refund_execute(callback: CallbackQuery, bot: Bot) -> None:
         user = payment.user
         ok, detail = await refund_star_payment_record(bot, db, payment)
         if ok:
-            await callback.answer("تم الاسترداد", show_alert=True)
+            await callback.answer("تم الاسترداد في تيليجرام", show_alert=True)
             await callback.message.edit_text(
-                f"✅ استرداد {payment.stars_amount} نجوم للمستخدم {user.telegram_id}.\n"
-                f"اضغط «↩️ استرداد نجوم» من ملف المستخدم لعرض مدفوعات أخرى."
+                admin_refund_feedback(ok, detail, payment.stars_amount, user.telegram_id),
+                parse_mode="Markdown",
             )
         else:
-            await callback.answer(f"فشل: {detail[:180]}", show_alert=True)
+            msg = admin_refund_feedback(ok, detail, payment.stars_amount, user.telegram_id)
+            await callback.answer(msg[:180], show_alert=True)
     finally:
         db.close()
 

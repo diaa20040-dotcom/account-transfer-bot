@@ -9,6 +9,7 @@ from app.bot.states import PlayPassStates, RunOpenStates, TopUpStates
 from app.database import SessionLocal, User
 from app.i18n import t
 from app.services.payments_record import save_successful_star_payment
+from app.services.star_payments import refund_stars_by_charge_id
 from app.services.users import get_or_create_user
 
 logger = logging.getLogger(__name__)
@@ -215,7 +216,7 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
 
 
 @router.message(F.successful_payment)
-async def successful_payment(message: Message, state: FSMContext) -> None:
+async def successful_payment(message: Message, state: FSMContext, bot: Bot) -> None:
     payment = message.successful_payment
     parsed_playpass = _parse_playpass_payload(payment.invoice_payload)
     if parsed_playpass:
@@ -233,7 +234,21 @@ async def successful_payment(message: Message, state: FSMContext) -> None:
             from app.services.play_pass import play_pass_accepts_new
 
             if not play_pass_accepts_new(db):
-                await message.answer(t(lang, "play_pass_paid_but_full"))
+                charge_id = payment.telegram_payment_charge_id or ""
+                ok, detail = await refund_stars_by_charge_id(
+                    bot, db, user, charge_id, stars, "play_pass"
+                )
+                if ok:
+                    await message.answer(t(lang, "play_pass_auto_refund_full", stars=stars))
+                else:
+                    logger.error(
+                        "Play Pass auto-refund failed user=%s detail=%s",
+                        user.telegram_id,
+                        detail,
+                    )
+                    await message.answer(
+                        t(lang, "play_pass_paid_but_full") + f"\n\n(استرداد تلقائي: {detail})"
+                    )
                 return
         finally:
             db.close()
