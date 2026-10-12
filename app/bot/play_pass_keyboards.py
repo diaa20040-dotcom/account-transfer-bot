@@ -34,6 +34,10 @@ def playpass_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✅ done", callback_data=f"adm:ppst:{req_id}:done"),
                 InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:ppst:{req_id}:rejected"),
             ],
+            [
+                InlineKeyboardButton(text="💬 رسالة", callback_data=f"adm:umsg:play_pass:{req_id}"),
+                InlineKeyboardButton(text="🗣️ مناقشة", callback_data=f"adm:udisc:play_pass:{req_id}"),
+            ],
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )

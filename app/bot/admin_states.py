@@ -31,6 +31,10 @@ class AdminMessageUser(StatesGroup):
     waiting_text = State()
 
 
+class AdminDiscussion(StatesGroup):
+    active = State()
+
+
 class AdminRestoreBackup(StatesGroup):
     waiting_file = State()
 

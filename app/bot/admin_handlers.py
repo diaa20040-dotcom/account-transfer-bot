@@ -24,6 +24,7 @@ from app.bot.admin_keyboards import (
     runopen_status_keyboard,
     task_actions_keyboard,
     tasks_admin_keyboard,
+    discussion_admin_keyboard,
     transfer_status_keyboard,
     mandatory_sub_admin_keyboard,
 )
@@ -43,6 +44,7 @@ from app.bot.admin_states import (
     AdminSetPlayPassStars,
     AdminSetRunOpenStars,
     AdminMandatorySub,
+    AdminDiscussion,
     AdminMessageUser,
     AdminRestoreBackup,
 )
@@ -79,7 +81,20 @@ from app.services.mandatory_sub import (
 )
 from app.services.backup_export import backup_json_bytes, import_backup_payload
 from app.services.broadcast import broadcast_message
-from app.services.user_notify import notify_transfer_status, send_admin_message_to_user
+from app.services.order_discussion import (
+    ORDER_KINDS,
+    close_thread,
+    get_thread_by_id,
+    load_order,
+    open_discussion,
+    order_kind_label,
+    order_user,
+)
+from app.services.user_notify import (
+    notify_transfer_status,
+    send_admin_message_to_user,
+    send_discussion_message_to_user,
+)
 from app.services.users import get_or_create_user
 
 router = Router()
@@ -221,23 +236,45 @@ async def admin_req_detail(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+def _parse_order_callback(data: str, prefix: str) -> tuple[str, int] | None:
+    parts = data.split(":")
+    # adm:umsg:12 (legacy transfer)
+    if len(parts) == 3 and parts[1] == prefix:
+        return "transfer", int(parts[2])
+    if len(parts) == 4 and parts[1] == prefix:
+        kind, req_id = parts[2], int(parts[3])
+        if kind in ORDER_KINDS:
+            return kind, req_id
+    return None
+
+
 @router.callback_query(F.data.startswith("adm:umsg:"))
 async def admin_message_user_start(callback: CallbackQuery, state: FSMContext) -> None:
     if not _admin_only_callback(callback):
         await callback.answer("غير مصرح", show_alert=True)
         return
-    req_id = int(callback.data.split(":")[-1])
+    parsed = _parse_order_callback(callback.data, "umsg")
+    if not parsed:
+        await callback.answer("طلب غير صالح", show_alert=True)
+        return
+    kind, req_id = parsed
     db = SessionLocal()
     try:
-        r = db.query(TransferRequest).filter_by(id=req_id).first()
-        if not r:
+        order = load_order(db, kind, req_id)
+        user = order_user(order)
+        if not user:
             await callback.answer("غير موجود", show_alert=True)
             return
-        await state.update_data(msg_req_id=req_id, msg_target_tid=r.user.telegram_id)
+        kind_label = order_kind_label(kind, "ar")
+        await state.update_data(
+            msg_kind=kind,
+            msg_req_id=req_id,
+            msg_target_tid=user.telegram_id,
+        )
         await state.set_state(AdminMessageUser.waiting_text)
         await callback.message.answer(
-            f"💬 اكتب الرسالة المرسلة للمستخدم (طلب #{req_id}):\n"
-            f"المستخدم: `{r.user.telegram_id}` @{r.user.username or '—'}\n"
+            f"💬 رسالة واحدة ({kind_label} #{req_id}):\n"
+            f"المستخدم: `{user.telegram_id}` @{user.username or '—'}\n"
             "أرسل `/cancel` للإلغاء.",
             parse_mode="Markdown",
         )
@@ -256,6 +293,7 @@ async def admin_message_user_send(message: Message, state: FSMContext, bot: Bot)
         return
     data = await state.get_data()
     req_id = data.get("msg_req_id")
+    kind = data.get("msg_kind", "transfer")
     target_tid = data.get("msg_target_tid")
     if not target_tid:
         await state.clear()
@@ -267,9 +305,12 @@ async def admin_message_user_send(message: Message, state: FSMContext, bot: Bot)
         if not user:
             await message.answer("المستخدم غير موجود في قاعدة البيانات.")
             return
-        ok = await send_admin_message_to_user(bot, user, int(req_id or 0), message.text.strip())
+        ok = await send_admin_message_to_user(
+            bot, user, kind, int(req_id or 0), message.text.strip()
+        )
         if ok:
-            await message.answer(f"✅ تم إرسال الرسالة للمستخدم (طلب #{req_id}).")
+            label = order_kind_label(kind, "ar")
+            await message.answer(f"✅ تم الإرسال ({label} #{req_id}).")
         else:
             await message.answer(
                 "❌ تعذّر الإرسال. ربما المستخدم حظر البوت أو لم يضغط Start."
@@ -277,6 +318,160 @@ async def admin_message_user_send(message: Message, state: FSMContext, bot: Bot)
     finally:
         db.close()
     await state.clear()
+
+
+@router.callback_query(F.data.startswith("adm:udisc:"))
+async def admin_discussion_start(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    parsed = _parse_order_callback(callback.data, "udisc")
+    if not parsed:
+        await callback.answer("طلب غير صالح", show_alert=True)
+        return
+    kind, req_id = parsed
+    db = SessionLocal()
+    try:
+        order = load_order(db, kind, req_id)
+        user = order_user(order)
+        if not user:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        thread = open_discussion(
+            db, user.id, callback.from_user.id, kind, req_id
+        )
+        kind_label = order_kind_label(kind, "ar")
+        lang = user.language if user.language in ("ar", "en") else "ar"
+        try:
+            await bot.send_message(
+                user.telegram_id,
+                t(
+                    lang,
+                    "discussion_opened_user",
+                    kind=order_kind_label(kind, lang),
+                    req_id=req_id,
+                ),
+                parse_mode="Markdown",
+            )
+        except Exception:
+            pass
+        await state.set_state(AdminDiscussion.active)
+        await state.update_data(disc_thread_id=thread.id)
+        await callback.message.answer(
+            t("ar", "discussion_opened_admin", kind=kind_label, req_id=req_id),
+            reply_markup=discussion_admin_keyboard(thread.id),
+            parse_mode="Markdown",
+        )
+        await callback.answer("وضع المناقشة مفعّل")
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("adm:udisc_end:"))
+async def admin_discussion_end(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_callback(callback):
+        return
+    thread_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        thread = get_thread_by_id(db, thread_id)
+        if not thread or not thread.active:
+            await callback.answer("المناقشة منتهية", show_alert=True)
+            return
+        if thread.admin_telegram_id != callback.from_user.id:
+            await callback.answer("هذه المناقشة لإداري آخر", show_alert=True)
+            return
+        user = thread.user
+        lang = user.language if user.language in ("ar", "en") else "ar"
+        close_thread(db, thread)
+        try:
+            await bot.send_message(user.telegram_id, t(lang, "discussion_ended_user"))
+        except Exception:
+            pass
+        await state.clear()
+        await callback.message.answer(t("ar", "discussion_ended_admin"))
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.message(AdminDiscussion.active, F.text)
+async def admin_discussion_send(message: Message, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_message(message):
+        return
+    if message.text.strip().lower() in {"/cancel", "/end"}:
+        data = await state.get_data()
+        thread_id = data.get("disc_thread_id")
+        if thread_id:
+            db = SessionLocal()
+            try:
+                thread = get_thread_by_id(db, int(thread_id))
+                if thread and thread.active:
+                    user = thread.user
+                    lang = user.language if user.language in ("ar", "en") else "ar"
+                    close_thread(db, thread)
+                    try:
+                        await bot.send_message(user.telegram_id, t(lang, "discussion_ended_user"))
+                    except Exception:
+                        pass
+            finally:
+                db.close()
+        await state.clear()
+        await message.answer(t("ar", "discussion_ended_admin"))
+        return
+    data = await state.get_data()
+    thread_id = data.get("disc_thread_id")
+    if not thread_id:
+        await state.clear()
+        await message.answer("انتهت المناقشة. افتحها من الطلب مرة أخرى.")
+        return
+    db = SessionLocal()
+    try:
+        thread = get_thread_by_id(db, int(thread_id))
+        if not thread or not thread.active:
+            await state.clear()
+            await message.answer("المناقشة مغلقة.")
+            return
+        user = thread.user
+        ok = await send_discussion_message_to_user(
+            bot, user, thread.kind, thread.request_id, message.text.strip()
+        )
+        if ok:
+            await message.answer(
+                "✅ تم الإرسال.",
+                reply_markup=discussion_admin_keyboard(thread.id),
+            )
+        else:
+            await message.answer("❌ تعذّر الإرسال للمستخدم.")
+    finally:
+        db.close()
+
+
+@router.message(AdminDiscussion.active, F.photo)
+async def admin_discussion_send_photo(message: Message, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_message(message):
+        return
+    data = await state.get_data()
+    thread_id = data.get("disc_thread_id")
+    if not thread_id:
+        return
+    db = SessionLocal()
+    try:
+        thread = get_thread_by_id(db, int(thread_id))
+        if not thread or not thread.active:
+            return
+        user = thread.user
+        lang = user.language if user.language in ("ar", "en") else "ar"
+        label = order_kind_label(thread.kind, lang)
+        cap = message.caption or ""
+        header = t(lang, "discussion_admin_msg", kind=label, req_id=thread.request_id, body=cap or "—")
+        try:
+            await bot.send_photo(user.telegram_id, message.photo[-1].file_id, caption=header)
+            await message.answer("✅ تم إرسال الصورة.", reply_markup=discussion_admin_keyboard(thread.id))
+        except Exception:
+            await message.answer("❌ تعذّر الإرسال.")
+    finally:
+        db.close()
 
 
 @router.callback_query(F.data.startswith("adm:st:"))

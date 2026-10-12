@@ -165,6 +165,20 @@ class PlayPassRequest(Base):
     user: Mapped[User] = relationship()
 
 
+class OrderDiscussion(Base):
+    __tablename__ = "order_discussions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    admin_telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    request_id: Mapped[int] = mapped_column(Integer)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[User] = relationship()
+
+
 class RunOpenRequest(Base):
     __tablename__ = "run_open_requests"
 

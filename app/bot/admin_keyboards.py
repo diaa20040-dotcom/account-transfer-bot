@@ -53,6 +53,26 @@ def admin_main_inline() -> InlineKeyboardMarkup:
     )
 
 
+def _order_contact_row(kind: str, req_id: int) -> list[InlineKeyboardButton]:
+    return [
+        InlineKeyboardButton(text="💬 رسالة", callback_data=f"adm:umsg:{kind}:{req_id}"),
+        InlineKeyboardButton(text="🗣️ مناقشة", callback_data=f"adm:udisc:{kind}:{req_id}"),
+    ]
+
+
+def discussion_admin_keyboard(thread_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⏹️ إنهاء المناقشة",
+                    callback_data=f"adm:udisc_end:{thread_id}",
+                )
+            ]
+        ]
+    )
+
+
 def transfer_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -64,7 +84,7 @@ def transfer_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✅ done", callback_data=f"adm:st:{req_id}:done"),
                 InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:st:{req_id}:rejected"),
             ],
-            [InlineKeyboardButton(text="💬 مراسلة المستخدم", callback_data=f"adm:umsg:{req_id}")],
+            _order_contact_row("transfer", req_id),
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
@@ -151,6 +171,7 @@ def box_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✅ done", callback_data=f"adm:bst:{req_id}:done"),
                 InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:bst:{req_id}:rejected"),
             ],
+            _order_contact_row("box", req_id),
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
@@ -167,6 +188,7 @@ def runopen_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✅ done", callback_data=f"adm:rost:{req_id}:done"),
                 InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:rost:{req_id}:rejected"),
             ],
+            _order_contact_row("run_open", req_id),
             [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
