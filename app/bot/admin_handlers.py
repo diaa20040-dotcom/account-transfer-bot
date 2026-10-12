@@ -64,6 +64,7 @@ from app.database import (
     PlayPassRequest,
     RunOpenRequest,
     SessionLocal,
+    StarPayment,
     Task,
     TransferRequest,
     User,
@@ -89,6 +90,11 @@ from app.services.order_discussion import (
     open_discussion,
     order_kind_label,
     order_user,
+)
+from app.services.star_payments import (
+    list_refundable_payments,
+    payment_kind_label,
+    refund_star_payment_record,
 )
 from app.services.user_notify import (
     notify_transfer_status,
@@ -929,6 +935,122 @@ async def admin_user_profile(callback: CallbackQuery) -> None:
     finally:
         db.close()
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:upstars:"))
+async def admin_user_star_payments(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    user_db_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=user_db_id).first()
+        if not user:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        payments = list_refundable_payments(db, user_db_id)
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+        if not payments:
+            text = (
+                f"↩️ استرداد نجوم — {user.telegram_id}\n\n"
+                "لا توجد مدفوعات مسجّلة قابلة للاسترداد.\n"
+                "(المدفوعات قبل تفعيل التسجيل لا تظهر هنا.)"
+            )
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="◀️ المستخدم", callback_data=f"adm:uprof:{user_db_id}")]
+                ]
+            )
+        else:
+            lines = [f"↩️ مدفوعات نجوم — {user.telegram_id} @{user.username or '—'}", ""]
+            rows = []
+            for p in payments:
+                label = payment_kind_label(p.payment_kind, "ar")
+                lines.append(f"#{p.id} | {label} | {p.stars_amount} ⭐")
+                rows.append(
+                    [
+                        InlineKeyboardButton(
+                            text=f"↩️ استرداد {p.stars_amount}⭐ ({label})",
+                            callback_data=f"adm:srefund:{p.id}",
+                        )
+                    ]
+                )
+            rows.append(
+                [InlineKeyboardButton(text="◀️ المستخدم", callback_data=f"adm:uprof:{user_db_id}")]
+            )
+            text = "\n".join(lines)
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:srefund:"))
+async def admin_refund_prompt(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    pay_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        payment = db.query(StarPayment).filter_by(id=pay_id).first()
+        if not payment or payment.refunded:
+            await callback.answer("غير متاح", show_alert=True)
+            return
+        user = payment.user
+        label = payment_kind_label(payment.payment_kind, "ar")
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+        extra = ""
+        if payment.payment_kind == "topup":
+            extra = f"\nسيتم خصم {payment.stars_amount} نقطة من رصيده (شحن سابق)."
+        text = (
+            f"تأكيد استرداد **{payment.stars_amount}** نجمة؟\n"
+            f"النوع: {label}\n"
+            f"المستخدم: {user.telegram_id} @{user.username or '—'}"
+            f"{extra}"
+        )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ تأكيد الاسترداد",
+                        callback_data=f"adm:srefund_ok:{pay_id}",
+                    ),
+                    InlineKeyboardButton(text="❌ إلغاء", callback_data=f"adm:upstars:{user.id}"),
+                ]
+            ]
+        )
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:srefund_ok:"))
+async def admin_refund_execute(callback: CallbackQuery, bot: Bot) -> None:
+    if not _admin_only_callback(callback):
+        return
+    pay_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        payment = db.query(StarPayment).filter_by(id=pay_id).first()
+        if not payment:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        user = payment.user
+        ok, detail = await refund_star_payment_record(bot, db, payment)
+        if ok:
+            await callback.answer("تم الاسترداد", show_alert=True)
+            await callback.message.edit_text(
+                f"✅ استرداد {payment.stars_amount} نجوم للمستخدم {user.telegram_id}.\n"
+                f"اضغط «↩️ استرداد نجوم» من ملف المستخدم لعرض مدفوعات أخرى."
+            )
+        else:
+            await callback.answer(f"فشل: {detail[:180]}", show_alert=True)
+    finally:
+        db.close()
 
 
 @router.callback_query(F.data.startswith("adm:uban:"))

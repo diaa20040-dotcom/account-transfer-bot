@@ -8,6 +8,7 @@ from app.bot.stars_keyboards import topup_amounts_keyboard
 from app.bot.states import PlayPassStates, RunOpenStates, TopUpStates
 from app.database import SessionLocal, User
 from app.i18n import t
+from app.services.payments_record import save_successful_star_payment
 from app.services.users import get_or_create_user
 
 logger = logging.getLogger(__name__)
@@ -228,6 +229,7 @@ async def successful_payment(message: Message, state: FSMContext) -> None:
             if not user:
                 return
             lang = user.language
+            save_successful_star_payment(db, user, payment)
             from app.services.play_pass import play_pass_accepts_new
 
             if not play_pass_accepts_new(db):
@@ -258,6 +260,7 @@ async def successful_payment(message: Message, state: FSMContext) -> None:
             if not user:
                 return
             lang = user.language
+            save_successful_star_payment(db, user, payment)
         finally:
             db.close()
         await state.clear()
@@ -280,6 +283,7 @@ async def successful_payment(message: Message, state: FSMContext) -> None:
         user = db.query(User).filter_by(id=user_id, telegram_id=message.from_user.id).first()
         if not user:
             return
+        save_successful_star_payment(db, user, payment)
         user.points += points
         db.commit()
         from app.services.snapshot_hook import snapshot_db

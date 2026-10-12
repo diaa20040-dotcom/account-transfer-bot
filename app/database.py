@@ -165,6 +165,21 @@ class PlayPassRequest(Base):
     user: Mapped[User] = relationship()
 
 
+class StarPayment(Base):
+    __tablename__ = "star_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    stars_amount: Mapped[int] = mapped_column(Integer)
+    payment_kind: Mapped[str] = mapped_column(String(32))
+    invoice_payload: Mapped[str] = mapped_column(String(128))
+    telegram_payment_charge_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    refunded: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[User] = relationship()
+
+
 class OrderDiscussion(Base):
     __tablename__ = "order_discussions"
 
