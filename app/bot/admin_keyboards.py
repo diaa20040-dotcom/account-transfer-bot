@@ -31,6 +31,7 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🎁 أكواد البرومو", callback_data="adm:promos"),
                 InlineKeyboardButton(text="➕ برومو جديد", callback_data="adm:promo_new"),
             ],
+            [InlineKeyboardButton(text="↩️ استرداد النجوم", callback_data="adm:stars_menu")],
             [InlineKeyboardButton(text="💎 إضافة نقاط لمستخدم", callback_data="adm:addpoints")],
             [InlineKeyboardButton(text="📣 إذاعة للمستخدمين", callback_data="adm:broadcast")],
             [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
@@ -177,19 +178,38 @@ def box_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def runopen_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
+def runopen_status_keyboard(
+    req_id: int, stars_paid: int = 0, stars_refunded: bool = False
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:rost:{req_id}:pending"),
+            InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:rost:{req_id}:processing"),
+        ],
+        [
+            InlineKeyboardButton(text="✅ done", callback_data=f"adm:rost:{req_id}:done"),
+            InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:rost:{req_id}:rejected"),
+        ],
+    ]
+    if stars_paid > 0 and not stars_refunded:
+        rows.append(
+            [InlineKeyboardButton(text="↩️ استرداد النجوم", callback_data=f"adm:oref:run_open:{req_id}")]
+        )
+    elif stars_refunded:
+        rows.append(
+            [InlineKeyboardButton(text="✅ تم استرداد النجوم", callback_data=f"adm:roreq:{req_id}")]
+        )
+    rows.append(_order_contact_row("run_open", req_id))
+    rows.append([InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def stars_refund_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:rost:{req_id}:pending"),
-                InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:rost:{req_id}:processing"),
-            ],
-            [
-                InlineKeyboardButton(text="✅ done", callback_data=f"adm:rost:{req_id}:done"),
-                InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:rost:{req_id}:rejected"),
-            ],
-            _order_contact_row("run_open", req_id),
-            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+            [InlineKeyboardButton(text="📋 كل طلبات النجوم", callback_data="adm:stars_all:0")],
+            [InlineKeyboardButton(text="🔍 بحث بمعرّف المستخدم", callback_data="adm:stars_find")],
+            [InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")],
         ]
     )
 

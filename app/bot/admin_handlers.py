@@ -22,6 +22,7 @@ from app.bot.admin_keyboards import (
     promo_actions_keyboard,
     promos_admin_keyboard,
     runopen_status_keyboard,
+    stars_refund_menu_keyboard,
     task_actions_keyboard,
     tasks_admin_keyboard,
     discussion_admin_keyboard,
@@ -47,6 +48,7 @@ from app.bot.admin_states import (
     AdminDiscussion,
     AdminMessageUser,
     AdminRestoreBackup,
+    AdminStarsRefund,
 )
 from app.bot.keyboards import main_menu
 from app.bot.play_pass_keyboards import (
@@ -92,9 +94,15 @@ from app.services.order_discussion import (
     order_user,
 )
 from app.services.star_payments import (
-    list_refundable_payments,
+    match_payment_to_request,
     payment_kind_label,
     refund_star_payment_record,
+    refund_stars_by_charge_id,
+)
+from app.services.stars_refund_admin import (
+    get_request_for_refund,
+    mark_request_stars_refunded,
+    paginate_star_orders,
 )
 from app.services.user_notify import (
     notify_transfer_status,
@@ -937,6 +945,118 @@ async def admin_user_profile(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+def _stars_refund_list_markup(db, page: int, user_db_id: int | None):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    items, page, pages = paginate_star_orders(db, page, per_page=6, user_id=user_db_id)
+    if user_db_id:
+        user = db.query(User).filter_by(id=user_db_id).first()
+        header = f"↩️ استرداد نجوم — {user.telegram_id if user else user_db_id}"
+        page_cb = f"adm:stusr:{user_db_id}"
+        back_row = [
+            InlineKeyboardButton(text="◀️ المستخدم", callback_data=f"adm:uprof:{user_db_id}")
+        ]
+    else:
+        header = "↩️ كل طلبات النجوم (سجلات الدفع + الطلبات القديمة)"
+        page_cb = "adm:stars_all"
+        back_row = [InlineKeyboardButton(text="◀️ استرداد النجوم", callback_data="adm:stars_menu")]
+    lines = [header, f"صفحة {page + 1}/{pages}", ""]
+    rows: list[list] = []
+    if not items:
+        lines.append("لا توجد طلبات نجوم لهذا العرض.")
+    for item in items:
+        state = "✅ مسترد" if item.refunded else "↩️ متاح"
+        lines.append(
+            f"• {item.title} | {item.stars}⭐ | 👤 {item.user_telegram_id} | {state}{item.hint}"
+        )
+        if item.callback_data:
+            btn_text = f"↩️ {item.stars}⭐ {item.title[:22]}"
+            rows.append([InlineKeyboardButton(text=btn_text, callback_data=item.callback_data)])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️", callback_data=f"{page_cb}:{page - 1}"))
+    if page < pages - 1:
+        nav.append(InlineKeyboardButton(text="▶️", callback_data=f"{page_cb}:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append(back_row)
+    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.callback_query(F.data == "adm:stars_menu")
+async def admin_stars_refund_menu(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await callback.message.edit_text(
+        "↩️ **استرداد النجوم**\n\n"
+        "• **كل طلبات النجوم**: كل الطلبات القديمة والجديدة (جائزة أسبوعية، Play Pass، شحن).\n"
+        "• **بحث بمعرّف**: عرض طلبات مستخدم واحد.\n\n"
+        "_ملاحظة: هذا مختلف عن «استعادة نسخة» (النسخ الاحتياطي)._",
+        reply_markup=stars_refund_menu_keyboard(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:stars_all:"))
+async def admin_stars_refund_all(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    page = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        text, kb = _stars_refund_list_markup(db, page, None)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:stusr:"))
+async def admin_stars_refund_user_page(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    parts = callback.data.split(":")
+    user_db_id = int(parts[2])
+    page = int(parts[3])
+    db = SessionLocal()
+    try:
+        text, kb = _stars_refund_list_markup(db, page, user_db_id)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:stars_find")
+async def admin_stars_refund_find(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminStarsRefund.waiting_user)
+    await callback.message.answer(
+        "أرسل **معرّف تيليجرام** (رقم) أو **@يوزرنيم** لعرض كل طلبات النجوم الخاصة به.",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminStarsRefund.waiting_user)
+async def admin_stars_refund_find_user(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    db = SessionLocal()
+    try:
+        user = _find_user_by_target(db, message.text or "")
+        if not user:
+            await message.answer("لم يُعثر على مستخدم — تأكد أنه فتح البوت مرة واحدة.")
+            return
+        text, kb = _stars_refund_list_markup(db, 0, user.id)
+        await message.answer(text, reply_markup=kb)
+    finally:
+        db.close()
+    await state.clear()
+
+
 @router.callback_query(F.data.startswith("adm:upstars:"))
 async def admin_user_star_payments(callback: CallbackQuery) -> None:
     if not _admin_only_callback(callback):
@@ -948,43 +1068,115 @@ async def admin_user_star_payments(callback: CallbackQuery) -> None:
         if not user:
             await callback.answer("غير موجود", show_alert=True)
             return
-        payments = list_refundable_payments(db, user_db_id)
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-        if not payments:
-            text = (
-                f"↩️ استرداد نجوم — {user.telegram_id}\n\n"
-                "لا توجد مدفوعات مسجّلة قابلة للاسترداد.\n"
-                "(المدفوعات قبل تفعيل التسجيل لا تظهر هنا.)"
-            )
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="◀️ المستخدم", callback_data=f"adm:uprof:{user_db_id}")]
-                ]
-            )
-        else:
-            lines = [f"↩️ مدفوعات نجوم — {user.telegram_id} @{user.username or '—'}", ""]
-            rows = []
-            for p in payments:
-                label = payment_kind_label(p.payment_kind, "ar")
-                lines.append(f"#{p.id} | {label} | {p.stars_amount} ⭐")
-                rows.append(
-                    [
-                        InlineKeyboardButton(
-                            text=f"↩️ استرداد {p.stars_amount}⭐ ({label})",
-                            callback_data=f"adm:srefund:{p.id}",
-                        )
-                    ]
-                )
-            rows.append(
-                [InlineKeyboardButton(text="◀️ المستخدم", callback_data=f"adm:uprof:{user_db_id}")]
-            )
-            text = "\n".join(lines)
-            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        text, kb = _stars_refund_list_markup(db, 0, user_db_id)
         await callback.message.edit_text(text, reply_markup=kb)
     finally:
         db.close()
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:oref:"))
+async def admin_order_stars_refund(
+    callback: CallbackQuery, bot: Bot, state: FSMContext
+) -> None:
+    if not _admin_only_callback(callback):
+        return
+    _, _, kind, req_id_s = callback.data.split(":", 3)
+    req_id = int(req_id_s)
+    db = SessionLocal()
+    try:
+        req = get_request_for_refund(db, kind, req_id)
+        if not req or req.stars_paid <= 0 or req.stars_refunded:
+            await callback.answer("غير متاح", show_alert=True)
+            return
+        payment = match_payment_to_request(db, req.user_id, kind, req.stars_paid, req.created_at)
+        if not payment:
+            await state.set_state(AdminStarsRefund.waiting_charge_id)
+            await state.update_data(refund_kind=kind, refund_req_id=req_id)
+            await callback.message.answer(
+                f"لا يوجد سجل دفع مطابق تلقائياً.\n"
+                f"أرسل **telegram_payment_charge_id** لاسترداد {req.stars_paid} نجمة "
+                f"لطلب #{req_id} (مستخدم {req.user.telegram_id}).",
+                parse_mode="Markdown",
+            )
+            await callback.answer()
+            return
+        ok, detail = await refund_star_payment_record(bot, db, payment)
+        if ok:
+            mark_request_stars_refunded(db, kind, req_id)
+            await callback.answer("تم الاسترداد", show_alert=True)
+            await callback.message.answer(
+                f"✅ استرداد {req.stars_paid} نجوم لطلب {kind} #{req_id} "
+                f"(مستخدم {req.user.telegram_id})."
+            )
+        else:
+            await callback.answer(f"فشل: {detail[:160]}", show_alert=True)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("adm:ocharge:"))
+async def admin_order_charge_refund_start(
+    callback: CallbackQuery, state: FSMContext
+) -> None:
+    if not _admin_only_callback(callback):
+        return
+    _, _, kind, req_id_s = callback.data.split(":", 3)
+    req_id = int(req_id_s)
+    db = SessionLocal()
+    try:
+        req = get_request_for_refund(db, kind, req_id)
+        if not req or req.stars_paid <= 0 or req.stars_refunded:
+            await callback.answer("غير متاح", show_alert=True)
+            return
+        await state.set_state(AdminStarsRefund.waiting_charge_id)
+        await state.update_data(refund_kind=kind, refund_req_id=req_id)
+        await callback.message.answer(
+            f"أرسل **telegram_payment_charge_id** لاسترداد {req.stars_paid} نجمة\n"
+            f"لطلب {kind} #{req_id} — المستخدم {req.user.telegram_id}.\n\n"
+            "يُرسل من تيليجرام مع تفاصيل الدفع (للطلبات القديمة قبل تسجيل السجل).",
+            parse_mode="Markdown",
+        )
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.message(AdminStarsRefund.waiting_charge_id)
+async def admin_order_charge_refund_save(message: Message, state: FSMContext, bot: Bot) -> None:
+    if not _admin_only_message(message):
+        return
+    data = await state.get_data()
+    kind = data.get("refund_kind")
+    req_id = data.get("refund_req_id")
+    if not kind or not req_id:
+        await state.clear()
+        return
+    db = SessionLocal()
+    try:
+        req = get_request_for_refund(db, kind, int(req_id))
+        if not req:
+            await message.answer("الطلب غير موجود.")
+            await state.clear()
+            return
+        ok, detail = await refund_stars_by_charge_id(
+            bot,
+            db,
+            req.user,
+            (message.text or "").strip(),
+            req.stars_paid,
+            kind,
+        )
+        if ok:
+            mark_request_stars_refunded(db, kind, int(req_id))
+            await message.answer(
+                f"✅ تم استرداد {req.stars_paid} نجوم للطلب #{req_id} ({kind})."
+            )
+        else:
+            await message.answer(f"فشل الاسترداد: {detail}")
+    finally:
+        db.close()
+    await state.clear()
 
 
 @router.callback_query(F.data.startswith("adm:srefund:"))
@@ -1991,7 +2183,12 @@ async def admin_playpass_detail(callback: CallbackQuery) -> None:
             f"الحساب: {r.account_name}\n"
             f"كلمة المرور: {r.account_password}"
         )
-        await callback.message.edit_text(text, reply_markup=playpass_status_keyboard(req_id))
+        await callback.message.edit_text(
+            text,
+            reply_markup=playpass_status_keyboard(
+                req_id, stars_paid=r.stars_paid, stars_refunded=bool(r.stars_refunded)
+            ),
+        )
     finally:
         db.close()
     await callback.answer()
@@ -2018,7 +2215,12 @@ async def admin_playpass_status(callback: CallbackQuery) -> None:
                 f"الدفع: {pay}\n"
                 f"الحساب: {r.account_name}"
             )
-            await callback.message.edit_text(text, reply_markup=playpass_status_keyboard(r.id))
+            await callback.message.edit_text(
+                text,
+                reply_markup=playpass_status_keyboard(
+                    r.id, stars_paid=r.stars_paid, stars_refunded=bool(r.stars_refunded)
+                ),
+            )
         else:
             await callback.answer("غير موجود", show_alert=True)
     finally:
@@ -2093,7 +2295,12 @@ async def admin_runopen_detail(callback: CallbackQuery) -> None:
             f"الحساب: {r.account_name}\n"
             f"كلمة المرور: {r.account_password}"
         )
-        await callback.message.edit_text(text, reply_markup=runopen_status_keyboard(req_id))
+        await callback.message.edit_text(
+            text,
+            reply_markup=runopen_status_keyboard(
+                req_id, stars_paid=r.stars_paid, stars_refunded=bool(r.stars_refunded)
+            ),
+        )
     finally:
         db.close()
     await callback.answer()
@@ -2118,7 +2325,12 @@ async def admin_runopen_status(callback: CallbackQuery) -> None:
                 f"المستخدم: {r.user.telegram_id}\n"
                 f"الحساب: {r.account_name}"
             )
-            await callback.message.edit_text(text, reply_markup=runopen_status_keyboard(r.id))
+            await callback.message.edit_text(
+                text,
+                reply_markup=runopen_status_keyboard(
+                    r.id, stars_paid=r.stars_paid, stars_refunded=bool(r.stars_refunded)
+                ),
+            )
         else:
             await callback.answer("غير موجود", show_alert=True)
     finally:

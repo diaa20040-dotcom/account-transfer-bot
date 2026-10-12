@@ -23,24 +23,35 @@ def play_pass_pay_keyboard(lang: str, points: int, stars: int) -> InlineKeyboard
     )
 
 
-def playpass_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:ppst:{req_id}:pending"),
-                InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:ppst:{req_id}:processing"),
-            ],
-            [
-                InlineKeyboardButton(text="✅ done", callback_data=f"adm:ppst:{req_id}:done"),
-                InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:ppst:{req_id}:rejected"),
-            ],
-            [
-                InlineKeyboardButton(text="💬 رسالة", callback_data=f"adm:umsg:play_pass:{req_id}"),
-                InlineKeyboardButton(text="🗣️ مناقشة", callback_data=f"adm:udisc:play_pass:{req_id}"),
-            ],
-            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
+def playpass_status_keyboard(
+    req_id: int, stars_paid: int = 0, stars_refunded: bool = False
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:ppst:{req_id}:pending"),
+            InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:ppst:{req_id}:processing"),
+        ],
+        [
+            InlineKeyboardButton(text="✅ done", callback_data=f"adm:ppst:{req_id}:done"),
+            InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:ppst:{req_id}:rejected"),
+        ],
+    ]
+    if stars_paid > 0 and not stars_refunded:
+        rows.append(
+            [InlineKeyboardButton(text="↩️ استرداد النجوم", callback_data=f"adm:oref:play_pass:{req_id}")]
+        )
+    elif stars_refunded:
+        rows.append(
+            [InlineKeyboardButton(text="✅ تم استرداد النجوم", callback_data=f"adm:ppreq:{req_id}")]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(text="💬 رسالة", callback_data=f"adm:umsg:play_pass:{req_id}"),
+            InlineKeyboardButton(text="🗣️ مناقشة", callback_data=f"adm:udisc:play_pass:{req_id}"),
         ]
     )
+    rows.append([InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def playpass_admin_list_keyboard(page: int, has_prev: bool, has_next: bool) -> InlineKeyboardMarkup:

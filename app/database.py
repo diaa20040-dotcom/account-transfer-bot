@@ -160,6 +160,7 @@ class PlayPassRequest(Base):
     stars_paid: Mapped[int] = mapped_column(Integer, default=0)
     payment_method: Mapped[str] = mapped_column(String(16), default="points")
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    stars_refunded: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped[User] = relationship()
@@ -202,6 +203,7 @@ class RunOpenRequest(Base):
     account_name: Mapped[str] = mapped_column(String(255))
     account_password: Mapped[str] = mapped_column(Text)
     stars_paid: Mapped[int] = mapped_column(Integer, default=10)
+    stars_refunded: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(32), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -303,10 +305,30 @@ def _migrate_user_columns() -> None:
             )
 
 
+def _migrate_stars_refunded_columns() -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    tables = ("play_pass_requests", "run_open_requests")
+    default = "FALSE" if _using_postgres() else "0"
+    for table in tables:
+        if table not in insp.get_table_names():
+            continue
+        cols = {c["name"] for c in insp.get_columns(table)}
+        if "stars_refunded" not in cols:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table} ADD COLUMN stars_refunded BOOLEAN NOT NULL DEFAULT {default}"
+                    )
+                )
+
+
 def init_db() -> None:
     _drop_legacy_garbage_tables()
     Base.metadata.create_all(bind=engine)
     _migrate_user_columns()
+    _migrate_stars_refunded_columns()
     db = SessionLocal()
     try:
         if db.query(Country).count() == 0:

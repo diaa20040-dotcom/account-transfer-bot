@@ -80,3 +80,8 @@ class AdminAddPromo(StatesGroup):
 
 class AdminBroadcast(StatesGroup):
     waiting_content = State()
+
+
+class AdminStarsRefund(StatesGroup):
+    waiting_user = State()
+    waiting_charge_id = State()
