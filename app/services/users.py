@@ -54,7 +54,7 @@ async def try_award_referral(db: Session, bot: Bot, user: User) -> bool:
         user.referral_credited = True
         db.commit()
         return False
-    ref_pts = int(get_setting(db, "referral_points", "25"))
+    ref_pts = int(get_setting(db, "referral_points", "1"))
     referrer.points += ref_pts
     user.referral_credited = True
     db.commit()

@@ -7,33 +7,16 @@ ADMIN_BTN_EN = "🛠 Admin panel"
 def admin_main_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📥 طلبات التحويل", callback_data="adm:transfers:0")],
-            [
-                InlineKeyboardButton(text="📦 طلبات الصناديق", callback_data="adm:boxes:0"),
-                InlineKeyboardButton(text="🎁 الجائزة الأسبوعية", callback_data="adm:runopen:0"),
-            ],
-            [InlineKeyboardButton(text="👨‍👩‍👧 Play Pass", callback_data="adm:playpass:0")],
-            [
-                InlineKeyboardButton(text="💰 أسعار الصناديق", callback_data="adm:box_pricing"),
-                InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),
-            ],
-            [InlineKeyboardButton(text="🎮 قائمة ألعاب الصناديق", callback_data="adm:boxgames")],
-            [InlineKeyboardButton(text="🌍 الدول والنقاط", callback_data="adm:countries")],
-            [
-                InlineKeyboardButton(text="📋 المهام", callback_data="adm:tasks"),
-                InlineKeyboardButton(text="➕ مهمة جديدة", callback_data="adm:task_new"),
-            ],
+            [InlineKeyboardButton(text="💳 طلبات الفيزا", callback_data="adm:visas:0")],
             [
                 InlineKeyboardButton(text="⚙️ نقاط الإحالة", callback_data="adm:referral"),
                 InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0"),
             ],
             [
-                InlineKeyboardButton(text="🎁 أكواد البرومو", callback_data="adm:promos"),
-                InlineKeyboardButton(text="➕ برومو جديد", callback_data="adm:promo_new"),
+                InlineKeyboardButton(text="💎 إضافة نقاط", callback_data="adm:addpoints"),
+                InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),
             ],
-            [InlineKeyboardButton(text="↩️ استرداد النجوم", callback_data="adm:stars_menu")],
-            [InlineKeyboardButton(text="💎 إضافة نقاط لمستخدم", callback_data="adm:addpoints")],
-            [InlineKeyboardButton(text="📣 إذاعة للمستخدمين", callback_data="adm:broadcast")],
+            [InlineKeyboardButton(text="📣 إذاعة", callback_data="adm:broadcast")],
             [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
             [
                 InlineKeyboardButton(text="📥 نسخة احتياطية", callback_data="adm:backup"),
@@ -70,6 +53,23 @@ def discussion_admin_keyboard(thread_id: int) -> InlineKeyboardMarkup:
                     callback_data=f"adm:udisc_end:{thread_id}",
                 )
             ]
+        ]
+    )
+
+
+def visa_status_keyboard(req_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⏳ pending", callback_data=f"adm:visa_st:{req_id}:pending"),
+                InlineKeyboardButton(text="🔄 processing", callback_data=f"adm:visa_st:{req_id}:processing"),
+            ],
+            [
+                InlineKeyboardButton(text="✅ done", callback_data=f"adm:visa_st:{req_id}:done"),
+                InlineKeyboardButton(text="❌ rejected", callback_data=f"adm:visa_st:{req_id}:rejected"),
+            ],
+            _order_contact_row("visa", req_id),
+            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
 

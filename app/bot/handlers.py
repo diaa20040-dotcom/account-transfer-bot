@@ -3,22 +3,12 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
-from app.bot.keyboards import countries_keyboard, main_menu, tasks_keyboard
+from app.bot.keyboards import main_menu
 from app.bot.mandatory_keyboards import mandatory_sub_keyboard
-from app.bot.states import TransferStates
 from app.config import settings
-from app.services.admin_access import is_admin, persist_admin
-from app.services.admin_notify import get_admin_ids
-from app.database import (
-    Country,
-    SessionLocal,
-    Task,
-    TaskCompletion,
-    TransferRequest,
-    User,
-    get_setting,
-)
+from app.database import SessionLocal, User, get_setting
 from app.i18n import t
+from app.services.admin_access import is_admin, persist_admin
 from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
 from app.services.users import (
     get_or_create_user,
@@ -32,16 +22,10 @@ router = Router()
 
 def _lang_btn_values() -> set[str]:
     keys = (
-        "btn_transfer",
-        "btn_box_tasks",
-        "btn_tasks",
+        "btn_visa",
         "btn_referral",
-        "btn_run_open",
-        "btn_play_pass",
         "btn_language",
         "btn_points",
-        "btn_topup",
-        "btn_promo",
     )
     return {t(lang, k) for lang in ("ar", "en") for k in keys}
 
@@ -150,7 +134,7 @@ async def show_referral(message: Message, bot: Bot) -> None:
         me = await bot.get_me()
         username = settings.bot_username or me.username or "bot"
         link = f"https://t.me/{username}?start=ref_{user.telegram_id}"
-        ref_pts = int(get_setting(db, "referral_points", "25"))
+        ref_pts = int(get_setting(db, "referral_points", "1"))
         count = referral_count(db, user)
         pending = referral_pending_count(db, user)
         await message.answer(
@@ -163,27 +147,6 @@ async def show_referral(message: Message, bot: Bot) -> None:
                 pending=pending,
             )
         )
-    finally:
-        db.close()
-
-
-@router.message(F.text.in_({t("ar", "btn_tasks"), t("en", "btn_tasks")}))
-async def show_tasks(message: Message) -> None:
-    db = SessionLocal()
-    try:
-        user, _ = get_or_create_user(
-            db, message.from_user.id, message.from_user.username, message.from_user.first_name
-        )
-        tasks = db.query(Task).filter_by(active=True).order_by(Task.sort_order).all()
-        lang = user.language
-        if not tasks:
-            await message.answer(t(lang, "no_tasks"))
-            return
-        lines = [t(lang, "tasks_header")]
-        for task in tasks:
-            title = task.title_ar if lang == "ar" else task.title_en
-            lines.append(t(lang, "task_line", title=title, reward=task.reward_points))
-        await message.answer("\n".join(lines), reply_markup=tasks_keyboard(lang, tasks))
     finally:
         db.close()
 
@@ -224,188 +187,10 @@ async def verify_mandatory(callback: CallbackQuery, bot: Bot) -> None:
         db.close()
 
 
-@router.callback_query(F.data.startswith("verify_task:"))
-async def verify_task(callback: CallbackQuery, bot: Bot) -> None:
-    task_id = int(callback.data.split(":")[1])
-    db = SessionLocal()
-    try:
-        user, _ = get_or_create_user(
-            db,
-            callback.from_user.id,
-            callback.from_user.username,
-            callback.from_user.first_name,
-        )
-        lang = user.language
-        task = db.query(Task).filter_by(id=task_id, active=True).first()
-        if not task:
-            await callback.answer("—", show_alert=True)
-            return
-        done = (
-            db.query(TaskCompletion)
-            .filter_by(user_id=user.id, task_id=task.id)
-            .first()
-        )
-        if done:
-            await callback.answer(t(lang, "task_already"), show_alert=True)
-            return
-        try:
-            member = await bot.get_chat_member(chat_id=task.chat_id, user_id=user.telegram_id)
-            if member.status in ("left", "kicked"):
-                await callback.answer(t(lang, "task_fail"), show_alert=True)
-                return
-        except Exception:
-            await callback.answer(t(lang, "task_fail"), show_alert=True)
-            return
-        db.add(TaskCompletion(user_id=user.id, task_id=task.id))
-        user.points += task.reward_points
-        db.commit()
-        await callback.answer(
-            t(lang, "task_done", reward=task.reward_points),
-            show_alert=True,
-        )
-    finally:
-        db.close()
-
-
-@router.message(F.text.in_({t("ar", "btn_transfer"), t("en", "btn_transfer")}))
-async def start_transfer(message: Message, state: FSMContext) -> None:
-    db = SessionLocal()
-    try:
-        user, _ = get_or_create_user(
-            db, message.from_user.id, message.from_user.username, message.from_user.first_name
-        )
-        countries = db.query(Country).filter_by(active=True).order_by(Country.sort_order).all()
-        lang = user.language
-        if not countries:
-            await message.answer("No countries configured." if lang == "en" else "لا توجد دول مفعّلة.")
-            return
-        await state.set_state(TransferStates.choosing_country)
-        await message.answer(
-            t(lang, "choose_country"),
-            reply_markup=countries_keyboard(lang, countries),
-        )
-    finally:
-        db.close()
-
-
-@router.callback_query(F.data == "cancel_transfer")
-async def cancel_transfer(callback: CallbackQuery, state: FSMContext) -> None:
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter_by(telegram_id=callback.from_user.id).first()
-        lang = user.language if user else "ar"
-    finally:
-        db.close()
-    await state.clear()
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(t(lang, "cancelled"))
-
-
-@router.callback_query(TransferStates.choosing_country, F.data.startswith("country:"))
-async def country_chosen(callback: CallbackQuery, state: FSMContext) -> None:
-    country_id = int(callback.data.split(":")[1])
-    db = SessionLocal()
-    try:
-        user, _ = get_or_create_user(
-            db,
-            callback.from_user.id,
-            callback.from_user.username,
-            callback.from_user.first_name,
-        )
-        lang = user.language
-        country = db.query(Country).filter_by(id=country_id, active=True).first()
-        if not country:
-            await callback.answer("—")
-            return
-        if user.points < country.point_cost:
-            await callback.answer(
-                t(lang, "need_points", cost=country.point_cost, have=user.points),
-                show_alert=True,
-            )
-            return
-        await state.update_data(country_id=country.id, point_cost=country.point_cost)
-        await state.set_state(TransferStates.entering_username)
-        await callback.message.edit_reply_markup(reply_markup=None)
-        await callback.message.answer(t(lang, "enter_username"))
-        await callback.answer()
-    finally:
-        db.close()
-
-
-@router.message(TransferStates.entering_username, F.text)
-async def got_username(message: Message, state: FSMContext) -> None:
-    if message.text.startswith("/"):
-        return
-    await state.update_data(account_name=message.text.strip())
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter_by(telegram_id=message.from_user.id).first()
-        lang = user.language if user else "ar"
-    finally:
-        db.close()
-    await state.set_state(TransferStates.entering_password)
-    await message.answer(t(lang, "enter_password"))
-
-
-@router.message(TransferStates.entering_password, F.text)
-async def got_password(message: Message, state: FSMContext, bot: Bot) -> None:
-    if message.text.startswith("/"):
-        return
-    data = await state.get_data()
-    password = message.text.strip()
-    db = SessionLocal()
-    try:
-        user, _ = get_or_create_user(
-            db, message.from_user.id, message.from_user.username, message.from_user.first_name
-        )
-        lang = user.language
-        country = db.query(Country).filter_by(id=data["country_id"]).first()
-        cost = data["point_cost"]
-        if not country or user.points < cost:
-            await message.answer(t(lang, "need_points", cost=cost, have=user.points))
-            await state.clear()
-            return
-        user.points -= cost
-        req = TransferRequest(
-            user_id=user.id,
-            country_id=country.id,
-            account_name=data["account_name"],
-            account_password=password,
-            status="pending",
-        )
-        db.add(req)
-        db.commit()
-        from app.services.snapshot_hook import snapshot_db
-
-        snapshot_db()
-        db.refresh(req)
-
-        cname = country.name_ar if lang == "ar" else country.name_en
-        admin_text = (
-            f"🆕 طلب تحويل #{req.id}\n"
-            f"المستخدم: {user.telegram_id} @{user.username or '—'}\n"
-            f"الدولة: {cname}\n"
-            f"الحساب: {req.account_name}\n"
-            f"كلمة المرور: {req.account_password}\n"
-            f"الحالة: pending"
-        )
-        for admin_id in get_admin_ids():
-            try:
-                await bot.send_message(admin_id, admin_text)
-            except Exception:
-                pass
-
-        adm = is_admin(message.from_user.id, message.from_user.username)
-        await message.answer(
-            t(lang, "transfer_submitted", cost=cost), reply_markup=main_menu(lang, adm)
-        )
-    finally:
-        db.close()
-    await state.clear()
-
-
 @router.message()
 async def fallback(message: Message) -> None:
+    if message.text in _lang_btn_values():
+        return
     db = SessionLocal()
     try:
         user, _ = get_or_create_user(

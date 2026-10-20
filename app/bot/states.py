@@ -29,3 +29,7 @@ class PlayPassStates(StatesGroup):
 
 class PromoStates(StatesGroup):
     entering_code = State()
+
+
+class VisaStates(StatesGroup):
+    entering_details = State()

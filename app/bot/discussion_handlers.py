@@ -13,16 +13,10 @@ def _menu_button_texts() -> frozenset[str]:
     from app.i18n import t
 
     keys = (
-        "btn_transfer",
-        "btn_box_tasks",
-        "btn_tasks",
+        "btn_visa",
         "btn_referral",
-        "btn_run_open",
-        "btn_play_pass",
         "btn_language",
         "btn_points",
-        "btn_topup",
-        "btn_promo",
     )
     return frozenset(t(lang, k) for lang in ("ar", "en") for k in keys)
 

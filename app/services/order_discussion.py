@@ -7,11 +7,13 @@ from app.database import (
     RunOpenRequest,
     TransferRequest,
     User,
+    VisaRequest,
 )
 
-ORDER_KINDS = frozenset({"transfer", "box", "run_open", "play_pass"})
+ORDER_KINDS = frozenset({"visa", "transfer", "box", "run_open", "play_pass"})
 
 _KIND_LABEL_AR = {
+    "visa": "فيزا",
     "transfer": "تحويل",
     "box": "صندوق",
     "run_open": "جائزة أسبوعية",
@@ -19,6 +21,7 @@ _KIND_LABEL_AR = {
 }
 
 _KIND_LABEL_EN = {
+    "visa": "Visa",
     "transfer": "transfer",
     "box": "box",
     "run_open": "weekly reward",
@@ -34,6 +37,8 @@ def order_kind_label(kind: str, lang: str) -> str:
 
 
 def load_order(db: Session, kind: str, request_id: int):
+    if kind == "visa":
+        return db.query(VisaRequest).filter_by(id=request_id).first()
     if kind == "transfer":
         return db.query(TransferRequest).filter_by(id=request_id).first()
     if kind == "box":

@@ -27,6 +27,7 @@ from app.bot.admin_keyboards import (
     tasks_admin_keyboard,
     discussion_admin_keyboard,
     transfer_status_keyboard,
+    visa_status_keyboard,
     mandatory_sub_admin_keyboard,
 )
 from app.bot.admin_states import (
@@ -69,6 +70,7 @@ from app.database import (
     StarPayment,
     Task,
     TransferRequest,
+    VisaRequest,
     User,
     get_setting,
     set_setting,
@@ -175,6 +177,114 @@ async def admin_menu(callback: CallbackQuery, state: FSMContext) -> None:
         parse_mode="Markdown",
     )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:visas:"))
+async def admin_visas(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    page = int(callback.data.split(":")[-1])
+    per_page = 5
+    db = SessionLocal()
+    try:
+        q = db.query(VisaRequest).order_by(desc(VisaRequest.created_at))
+        total = q.count()
+        items = q.offset(page * per_page).limit(per_page).all()
+        if not items:
+            text = "لا توجد طلبات فيزا."
+            kb = admin_main_inline()
+        else:
+            lines = [f"💳 طلبات الفيزا ({page + 1}/{(total - 1) // per_page + 1})"]
+            for r in items:
+                pay = f"{r.points_paid} نقطة" if r.payment_method == "points" else f"{r.stars_paid}⭐"
+                lines.append(
+                    f"\n#{r.id} | {r.status} | {pay}\n"
+                    f"👤 {r.user.telegram_id} @{r.user.username or '—'}\n"
+                    f"📝 {r.details[:120]}{'…' if len(r.details) > 120 else ''}"
+                )
+            text = "\n".join(lines)
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+            nav = []
+            if page > 0:
+                nav.append(
+                    InlineKeyboardButton(text="◀️", callback_data=f"adm:visas:{page - 1}")
+                )
+            if (page + 1) * per_page < total:
+                nav.append(
+                    InlineKeyboardButton(text="▶️", callback_data=f"adm:visas:{page + 1}")
+                )
+            rows = [
+                [InlineKeyboardButton(text=f"⚙️ فيزا #{r.id}", callback_data=f"adm:visa:{r.id}")]
+                for r in items
+            ]
+            if nav:
+                rows.append(nav)
+            rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        await callback.message.edit_text(text, reply_markup=kb)
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:visa:"))
+async def admin_visa_detail(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    if callback.data.count(":") != 2:
+        await callback.answer("—", show_alert=True)
+        return
+    req_id = int(callback.data.split(":")[-1])
+    db = SessionLocal()
+    try:
+        r = db.query(VisaRequest).filter_by(id=req_id).first()
+        if not r:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        pay = f"{r.points_paid} نقطة" if r.payment_method == "points" else f"{r.stars_paid} نجمة"
+        text = (
+            f"فيزا #{r.id}\n"
+            f"الحالة: {r.status}\n"
+            f"المستخدم: {r.user.telegram_id} @{r.user.username or '—'}\n"
+            f"الدفع: {pay}\n"
+            f"البيانات:\n{r.details}"
+        )
+        await callback.message.edit_text(text, reply_markup=visa_status_keyboard(r.id))
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:visa_st:"))
+async def admin_visa_set_status(callback: CallbackQuery, bot: Bot) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    _, _, req_id, status = callback.data.split(":", 3)
+    db = SessionLocal()
+    try:
+        r = db.query(VisaRequest).filter_by(id=int(req_id)).first()
+        if not r:
+            await callback.answer("غير موجود", show_alert=True)
+            return
+        r.status = status
+        db.commit()
+        await notify_transfer_status(bot, r.user, r.id, status)
+        await callback.answer(f"تم: {status}", show_alert=True)
+        pay = f"{r.points_paid} نقطة" if r.payment_method == "points" else f"{r.stars_paid} نجمة"
+        text = (
+            f"فيزا #{r.id}\n"
+            f"الحالة: {r.status}\n"
+            f"المستخدم: {r.user.telegram_id}\n"
+            f"الدفع: {pay}\n"
+            f"البيانات:\n{r.details}"
+        )
+        await callback.message.edit_text(text, reply_markup=visa_status_keyboard(r.id))
+    finally:
+        db.close()
 
 
 @router.callback_query(F.data.startswith("adm:transfers:"))

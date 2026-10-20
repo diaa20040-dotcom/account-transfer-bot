@@ -195,6 +195,22 @@ class OrderDiscussion(Base):
     user: Mapped[User] = relationship()
 
 
+class VisaRequest(Base):
+    __tablename__ = "visa_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    details: Mapped[str] = mapped_column(Text)
+    points_paid: Mapped[int] = mapped_column(Integer, default=0)
+    stars_paid: Mapped[int] = mapped_column(Integer, default=0)
+    payment_method: Mapped[str] = mapped_column(String(16), default="points")
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    stars_refunded: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship()
+
+
 class RunOpenRequest(Base):
     __tablename__ = "run_open_requests"
 
@@ -334,7 +350,11 @@ def init_db() -> None:
         if db.query(Country).count() == 0:
             sync_default_countries(db)
         if db.query(AppSetting).filter_by(key="referral_points").first() is None:
-            db.add(AppSetting(key="referral_points", value="25"))
+            db.add(AppSetting(key="referral_points", value="1"))
+        if db.query(AppSetting).filter_by(key="visa_points").first() is None:
+            db.add(AppSetting(key="visa_points", value="15"))
+        if db.query(AppSetting).filter_by(key="visa_stars").first() is None:
+            db.add(AppSetting(key="visa_stars", value="15"))
         if db.query(AppSetting).filter_by(key="bot_maintenance_enabled").first() is None:
             db.add(AppSetting(key="bot_maintenance_enabled", value="0"))
         if db.query(AppSetting).filter_by(key="run_open_stars").first() is None:

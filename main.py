@@ -11,14 +11,11 @@ from aiogram.types import Update
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from app.bot.admin_handlers import router as admin_router
-from app.bot.box_handlers import router as box_router
 from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
 from app.bot.payments_handlers import router as payments_router
 from app.bot.discussion_handlers import router as discussion_router
-from app.bot.promo_handlers import router as promo_router
-from app.bot.play_pass_handlers import router as play_pass_router
-from app.bot.run_open_handlers import router as run_open_router
+from app.bot.visa_handlers import router as visa_router
 from app.bot.middlewares import (
     BannedUserMiddleware,
     MaintenanceMiddleware,
@@ -57,10 +54,7 @@ def build_dispatcher() -> Dispatcher:
     dp.include_router(group_guard_router)
     dp.include_router(admin_router)
     dp.include_router(payments_router)
-    dp.include_router(box_router)
-    dp.include_router(run_open_router)
-    dp.include_router(play_pass_router)
-    dp.include_router(promo_router)
+    dp.include_router(visa_router)
     dp.include_router(discussion_router)
     dp.include_router(user_router)
     return dp
