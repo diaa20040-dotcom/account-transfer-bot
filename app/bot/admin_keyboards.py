@@ -7,7 +7,10 @@ ADMIN_BTN_EN = "🛠 Admin panel"
 def admin_main_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💳 طلبات الفيزا", callback_data="adm:visas:0")],
+            [
+                InlineKeyboardButton(text="💳 طلبات الفيزا", callback_data="adm:visas:0"),
+                InlineKeyboardButton(text="📦 مخزون الفيز", callback_data="adm:visa_stock"),
+            ],
             [
                 InlineKeyboardButton(text="⚙️ نقاط الإحالة", callback_data="adm:referral"),
                 InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0"),

@@ -4,11 +4,14 @@ from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, PreCheckoutQuery
 
-from app.bot.states import VisaStates
+from app.bot.keyboards import main_menu
+from app.bot.visa_handlers import deliver_visa_to_user, visa_stars_cost
 from app.database import SessionLocal, User, get_setting
 from app.i18n import t
+from app.services.admin_access import is_admin
 from app.services.payments_record import save_successful_star_payment
-from app.services.users import get_or_create_user
+from app.services.star_payments import refund_stars_by_charge_id
+from app.services.visa_delivery import count_available_visas
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +52,9 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
         if stars != expected:
             await query.answer(ok=False, error_message="Price changed.")
             return
+        if count_available_visas(db) <= 0:
+            await query.answer(ok=False, error_message="نفذ مخزون الفيز حالياً.")
+            return
         if not db.query(User).filter_by(id=user_id, telegram_id=query.from_user.id).first():
             await query.answer(ok=False, error_message="User mismatch.")
             return
@@ -76,15 +82,27 @@ async def successful_payment(message: Message, state: FSMContext, bot: Bot) -> N
             return
         lang = user.language
         save_successful_star_payment(db, user, payment)
+        charge_id = payment.telegram_payment_charge_id or ""
     finally:
         db.close()
 
     await state.clear()
-    await state.update_data(
-        visa_paid=True,
-        visa_payment="stars",
-        visa_points=0,
-        visa_stars=stars,
-    )
-    await state.set_state(VisaStates.entering_details)
-    await message.answer(t(lang, "visa_paid_enter_details", stars=stars))
+    delivered = await deliver_visa_to_user(bot, user, lang, "stars", 0, stars)
+    adm = is_admin(message.from_user.id, message.from_user.username)
+    if delivered:
+        await message.answer(t(lang, "visa_done_hint"), reply_markup=main_menu(lang, adm))
+    else:
+        if charge_id:
+            db = SessionLocal()
+            try:
+                u = db.query(User).filter_by(id=user.id).first()
+                if u:
+                    ok, _ = await refund_stars_by_charge_id(
+                        bot, db, u, charge_id, stars, "visa"
+                    )
+                    if ok:
+                        await message.answer(t(lang, "visa_stars_refunded"), reply_markup=main_menu(lang, adm))
+                        return
+            finally:
+                db.close()
+        await message.answer(t(lang, "visa_sold_out"), reply_markup=main_menu(lang, adm))

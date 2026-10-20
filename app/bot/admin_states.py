@@ -85,3 +85,7 @@ class AdminBroadcast(StatesGroup):
 class AdminStarsRefund(StatesGroup):
     waiting_user = State()
     waiting_charge_id = State()
+
+
+class AdminAddVisaStock(StatesGroup):
+    waiting_content = State()

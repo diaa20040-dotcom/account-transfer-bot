@@ -50,6 +50,7 @@ from app.bot.admin_states import (
     AdminMessageUser,
     AdminRestoreBackup,
     AdminStarsRefund,
+    AdminAddVisaStock,
 )
 from app.bot.keyboards import main_menu
 from app.bot.play_pass_keyboards import (
@@ -71,6 +72,7 @@ from app.database import (
     Task,
     TransferRequest,
     VisaRequest,
+    VisaStock,
     User,
     get_setting,
     set_setting,
@@ -253,6 +255,117 @@ async def admin_visa_detail(callback: CallbackQuery) -> None:
             f"البيانات:\n{r.details}"
         )
         await callback.message.edit_text(text, reply_markup=visa_status_keyboard(r.id))
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:visa_stock")
+async def admin_visa_stock_menu(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    from app.services.visa_delivery import count_available_visas
+
+    db = SessionLocal()
+    try:
+        total = db.query(VisaStock).count()
+        available = count_available_visas(db)
+        used = total - available
+        text = (
+            f"📦 مخزون الفيز\n\n"
+            f"متاح: {available}\nمُسلَّم: {used}\nالإجمالي: {total}\n\n"
+            "أضف فيزا جديدة (واحدة لكل رسالة). لإضافة عدة فيزات في رسالة واحدة افصل بينها بسطر:\n"
+            "`---`"
+        )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="➕ إضافة فيزا", callback_data="adm:visa_stock_add")],
+                [InlineKeyboardButton(text="📋 عرض المتاح", callback_data="adm:visa_stock_list")],
+                [InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")],
+            ]
+        )
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:visa_stock_add")
+async def admin_visa_stock_add_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminAddVisaStock.waiting_content)
+    await callback.message.answer(
+        "أرسل بيانات الفيزا (رسالة واحدة = فيزا واحدة).\n"
+        "لإضافة أكثر من فيزا في نفس الرسالة ضع `---` بين كل فيزا وأخرى.\n"
+        "أو /cancel للإلغاء.",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminAddVisaStock.waiting_content, F.text)
+async def admin_visa_stock_add_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    if message.text.strip().lower() in ("/cancel", "cancel"):
+        await state.clear()
+        await message.answer("تم الإلغاء.")
+        return
+    raw = message.text.strip()
+    parts = [p.strip() for p in raw.split("\n---\n") if p.strip()]
+    if not parts and "---" in raw:
+        parts = [p.strip() for p in raw.split("---") if p.strip()]
+    if not parts:
+        parts = [raw]
+    db = SessionLocal()
+    try:
+        for content in parts:
+            db.add(VisaStock(content=content, is_used=False))
+        db.commit()
+        from app.services.snapshot_hook import snapshot_db
+        from app.services.visa_delivery import count_available_visas
+
+        snapshot_db()
+        avail = count_available_visas(db)
+        await message.answer(f"✅ تمت إضافة {len(parts)} فيزا. المتاح الآن: {avail}")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data == "adm:visa_stock_list")
+async def admin_visa_stock_list(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    db = SessionLocal()
+    try:
+        items = (
+            db.query(VisaStock)
+            .filter_by(is_used=False)
+            .order_by(VisaStock.id)
+            .limit(20)
+            .all()
+        )
+        if not items:
+            text = "لا توجد فيزات متاحة في المخزون."
+        else:
+            lines = ["📋 الفيز المتاحة:"]
+            for s in items:
+                preview = s.content.replace("\n", " ")[:60]
+                lines.append(f"\n#{s.id} — {preview}{'…' if len(s.content) > 60 else ''}")
+            text = "\n".join(lines)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ مخزون الفيز", callback_data="adm:visa_stock")]
+            ]
+        )
+        await callback.message.edit_text(text, reply_markup=kb)
     finally:
         db.close()
     await callback.answer()

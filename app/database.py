@@ -195,11 +195,23 @@ class OrderDiscussion(Base):
     user: Mapped[User] = relationship()
 
 
+class VisaStock(Base):
+    __tablename__ = "visa_stock"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    content: Mapped[str] = mapped_column(Text)
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    used_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class VisaRequest(Base):
     __tablename__ = "visa_requests"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    visa_stock_id: Mapped[int | None] = mapped_column(ForeignKey("visa_stock.id"), nullable=True)
     details: Mapped[str] = mapped_column(Text)
     points_paid: Mapped[int] = mapped_column(Integer, default=0)
     stars_paid: Mapped[int] = mapped_column(Integer, default=0)
@@ -209,6 +221,7 @@ class VisaRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship()
+    visa_stock: Mapped["VisaStock | None"] = relationship()
 
 
 class RunOpenRequest(Base):
@@ -340,11 +353,24 @@ def _migrate_stars_refunded_columns() -> None:
                 )
 
 
+def _migrate_visa_request_stock_id() -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    if "visa_requests" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("visa_requests")}
+    if "visa_stock_id" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE visa_requests ADD COLUMN visa_stock_id INTEGER"))
+
+
 def init_db() -> None:
     _drop_legacy_garbage_tables()
     Base.metadata.create_all(bind=engine)
     _migrate_user_columns()
     _migrate_stars_refunded_columns()
+    _migrate_visa_request_stock_id()
     db = SessionLocal()
     try:
         if db.query(Country).count() == 0:
