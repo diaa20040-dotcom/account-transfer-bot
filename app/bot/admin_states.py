@@ -89,3 +89,8 @@ class AdminStarsRefund(StatesGroup):
 
 class AdminAddVisaStock(StatesGroup):
     waiting_content = State()
+
+
+class AdminSetVisaPrice(StatesGroup):
+    waiting_points = State()
+    waiting_stars = State()

@@ -28,6 +28,7 @@ from app.bot.admin_keyboards import (
     discussion_admin_keyboard,
     transfer_status_keyboard,
     visa_status_keyboard,
+    visa_price_admin_keyboard,
     mandatory_sub_admin_keyboard,
 )
 from app.bot.admin_states import (
@@ -51,6 +52,7 @@ from app.bot.admin_states import (
     AdminRestoreBackup,
     AdminStarsRefund,
     AdminAddVisaStock,
+    AdminSetVisaPrice,
 )
 from app.bot.keyboards import main_menu
 from app.bot.play_pass_keyboards import (
@@ -1081,6 +1083,113 @@ async def admin_mandatory_sub_link_save(message: Message, state: FSMContext) -> 
     try:
         set_setting(db, KEY_INVITE_LINK, link)
         await message.answer("✅ تم حفظ رابط القناة." if link else "✅ تم حذف الرابط.")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data == "adm:visa_price")
+async def admin_visa_price_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.clear()
+    db = SessionLocal()
+    try:
+        pts = get_setting(db, "visa_points", "15")
+        stars = get_setting(db, "visa_stars", "15")
+    finally:
+        db.close()
+    text = (
+        "💰 **سعر الفيزا**\n\n"
+        f"الدفع بالنقاط: **{pts}** نقطة\n"
+        f"الدفع بالنجوم: **{stars}** نجمة\n\n"
+        "اختر ما تريد تغييره:"
+    )
+    await callback.message.edit_text(
+        text,
+        reply_markup=visa_price_admin_keyboard(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:visa_price_pts")
+async def admin_visa_price_pts_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        pts = get_setting(db, "visa_points", "15")
+    finally:
+        db.close()
+    await state.set_state(AdminSetVisaPrice.waiting_points)
+    await callback.message.answer(
+        f"سعر النقاط الحالي: **{pts}**\nأرسل الرقم الجديد (1–10000):",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:visa_price_stars")
+async def admin_visa_price_stars_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    db = SessionLocal()
+    try:
+        stars = get_setting(db, "visa_stars", "15")
+    finally:
+        db.close()
+    await state.set_state(AdminSetVisaPrice.waiting_stars)
+    await callback.message.answer(
+        f"سعر النجوم الحالي: **{stars}**\nأرسل الرقم الجديد (1–10000):",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.message(AdminSetVisaPrice.waiting_points, F.text)
+async def admin_visa_price_pts_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        pts = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if pts < 1 or pts > 10_000:
+        await message.answer("من 1 إلى 10000.")
+        return
+    db = SessionLocal()
+    try:
+        set_setting(db, "visa_points", str(pts))
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
+        await message.answer(f"✅ سعر الفيزا بالنقاط: **{pts}** نقطة", parse_mode="Markdown")
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.message(AdminSetVisaPrice.waiting_stars, F.text)
+async def admin_visa_price_stars_save(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        stars = int(message.text.strip())
+    except ValueError:
+        await message.answer("رقم فقط.")
+        return
+    if stars < 1 or stars > 10_000:
+        await message.answer("من 1 إلى 10000.")
+        return
+    db = SessionLocal()
+    try:
+        set_setting(db, "visa_stars", str(stars))
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
+        await message.answer(f"✅ سعر الفيزا بالنجوم: **{stars}** نجمة", parse_mode="Markdown")
     finally:
         db.close()
     await state.clear()

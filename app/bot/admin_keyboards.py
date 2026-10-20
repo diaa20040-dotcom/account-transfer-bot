@@ -12,9 +12,10 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="📦 مخزون الفيز", callback_data="adm:visa_stock"),
             ],
             [
+                InlineKeyboardButton(text="💰 سعر الفيزا", callback_data="adm:visa_price"),
                 InlineKeyboardButton(text="⚙️ نقاط الإحالة", callback_data="adm:referral"),
-                InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0"),
             ],
+            [InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0")],
             [
                 InlineKeyboardButton(text="💎 إضافة نقاط", callback_data="adm:addpoints"),
                 InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),
@@ -36,6 +37,16 @@ def admin_main_inline() -> InlineKeyboardMarkup:
                 ),
             ],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="adm:close")],
+        ]
+    )
+
+
+def visa_price_admin_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💎 تغيير سعر النقاط", callback_data="adm:visa_price_pts")],
+            [InlineKeyboardButton(text="⭐ تغيير سعر النجوم", callback_data="adm:visa_price_stars")],
+            [InlineKeyboardButton(text="◀️ قائمة الإدارة", callback_data="adm:menu")],
         ]
     )
 
