@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, LabeledPrice, Message
@@ -10,6 +12,8 @@ from app.services.admin_access import is_admin
 from app.services.notify_admins import notify_admins
 from app.services.users import get_or_create_user
 from app.services.visa_delivery import count_available_visas, fulfill_visa_order
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -43,6 +47,15 @@ async def send_visa_invoice(bot: Bot, chat_id: int, lang: str, user_db_id: int, 
     )
 
 
+async def _send_visa_content(bot: Bot, telegram_id: int, lang: str, content: str) -> None:
+    text = t(lang, "visa_delivered", content=content)
+    try:
+        await bot.send_message(telegram_id, text)
+    except Exception:
+        logger.exception("send visa to %s failed, retry plain", telegram_id)
+        await bot.send_message(telegram_id, text, parse_mode=None)
+
+
 async def deliver_visa_to_user(
     bot: Bot,
     user: User,
@@ -51,7 +64,7 @@ async def deliver_visa_to_user(
     points_paid: int,
     stars_paid: int,
 ) -> bool:
-    """Fulfill order; refund points on sold_out. Returns True if delivered."""
+    """Fulfill order (points deducted inside fulfill). Returns True if delivered."""
     db = SessionLocal()
     try:
         db_user = db.query(User).filter_by(id=user.id).first()
@@ -62,11 +75,7 @@ async def deliver_visa_to_user(
             from app.services.snapshot_hook import snapshot_db
 
             snapshot_db()
-            await bot.send_message(
-                user.telegram_id,
-                t(lang, "visa_delivered", content=result.content),
-                parse_mode=None,
-            )
+            await _send_visa_content(bot, user.telegram_id, lang, result.content)
             await notify_admins(
                 bot,
                 f"✅ تسليم تلقائي فيزا #{result.request.id}\n"
@@ -74,17 +83,18 @@ async def deliver_visa_to_user(
                 f"متبقي في المخزون: {count_available_visas(db)}",
             )
             return True
-        if payment_method == "points" and points_paid > 0:
-            db_user.points += points_paid
-            db.commit()
-        from app.services.snapshot_hook import snapshot_db
-
-        snapshot_db()
-        await bot.send_message(user.telegram_id, t(lang, "visa_sold_out"))
-        await notify_admins(
-            bot,
-            f"⚠️ نفذ مخزون الفيز — مستخدم {user.telegram_id} (دفع: {payment_method})",
-        )
+        if result.reason == "sold_out":
+            await bot.send_message(user.telegram_id, t(lang, "visa_sold_out"))
+            await notify_admins(
+                bot,
+                f"⚠️ نفذ مخزون الفيز — مستخدم {user.telegram_id} (دفع: {payment_method})",
+            )
+        elif result.reason == "error":
+            await bot.send_message(user.telegram_id, t(lang, "visa_delivery_error"))
+            await notify_admins(
+                bot,
+                f"❌ خطأ تسليم فيزا — مستخدم {user.telegram_id}. راجع السجلات.",
+            )
         return False
     finally:
         db.close()
@@ -133,6 +143,8 @@ async def visa_cancel(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "visa:points")
 async def visa_pay_points(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    lang = "ar"
+    adm = is_admin(callback.from_user.id, callback.from_user.username)
     db = SessionLocal()
     try:
         user, _ = get_or_create_user(
@@ -152,20 +164,43 @@ async def visa_pay_points(callback: CallbackQuery, state: FSMContext, bot: Bot) 
                 show_alert=True,
             )
             return
-        user.points -= cost
-        db.commit()
+        result = fulfill_visa_order(db, user, "points", cost, 0)
+        if not result.ok or not result.content:
+            if result.reason == "sold_out":
+                await callback.answer(t(lang, "visa_sold_out"), show_alert=True)
+            elif result.reason == "error":
+                await callback.answer(t(lang, "visa_delivery_error"), show_alert=True)
+            else:
+                await callback.answer(t(lang, "visa_sold_out"), show_alert=True)
+            return
+        from app.services.snapshot_hook import snapshot_db
+
+        snapshot_db()
+        content = result.content
+        tg_id = user.telegram_id
+    except Exception:
+        logger.exception("visa_pay_points failed")
+        await callback.answer(t(lang, "visa_delivery_error"), show_alert=True)
+        return
     finally:
         db.close()
+
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    adm = is_admin(callback.from_user.id, callback.from_user.username)
-    delivered = await deliver_visa_to_user(bot, user, lang, "points", cost, 0)
-    if delivered:
-        await callback.message.answer(t(lang, "visa_done_hint"), reply_markup=main_menu(lang, adm))
-    else:
-        await callback.message.answer(reply_markup=main_menu(lang, adm))
+    await _send_visa_content(bot, tg_id, lang, content)
+    rem_db = SessionLocal()
+    try:
+        remaining = count_available_visas(rem_db)
+    finally:
+        rem_db.close()
+    await notify_admins(
+        bot,
+        f"✅ تسليم فيزا بالنقاط #{result.request.id}\n"
+        f"المستخدم: {tg_id}\nمتبقي: {remaining}",
+    )
+    await callback.message.answer(t(lang, "visa_done_hint"), reply_markup=main_menu(lang, adm))
     await callback.answer()
 
 

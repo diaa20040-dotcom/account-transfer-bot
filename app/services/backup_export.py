@@ -17,6 +17,7 @@ from app.database import (
     Task,
     TransferRequest,
     User,
+    VisaStock,
 )
 
 RUNTIME_SNAPSHOT = Path(__file__).resolve().parents[2] / "data" / "runtime_snapshot.json"
@@ -106,6 +107,14 @@ def build_backup_payload(db: Session) -> dict[str, Any]:
                 "code": r.promo.code,
             }
             for r in db.query(PromoRedemption).all()
+        ]
+    if _table_exists("visa_stock"):
+        payload["visa_stock"] = [
+            {
+                "content": s.content,
+                "is_used": bool(s.is_used),
+            }
+            for s in db.query(VisaStock).order_by(VisaStock.id).all()
         ]
     return payload
 
@@ -312,6 +321,18 @@ def import_backup_payload(db: Session, payload: dict[str, Any]) -> tuple[int, in
             pid = code_to_id.get(code)
             if user and pid:
                 db.add(PromoRedemption(user_id=user.id, promo_id=pid))
+
+    backup_visa = payload.get("visa_stock") or []
+    if backup_visa and _table_exists("visa_stock"):
+        existing_contents = {s.content for s in db.query(VisaStock).all()}
+        for row in backup_visa:
+            if row.get("is_used"):
+                continue
+            content = (row.get("content") or "").strip()
+            if not content or content in existing_contents:
+                continue
+            db.add(VisaStock(content=content, is_used=False))
+            existing_contents.add(content)
 
     try:
         db.commit()
