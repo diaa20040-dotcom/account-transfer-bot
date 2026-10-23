@@ -1,5 +1,13 @@
 TEXTS = {
     "ar": {
+        "welcome_sell": "مرحباً {name} 👋\nاضغط «بيع نجوم»، اكتب الكمية، ثم ادفع بالنجوم.\nبعد الدفع سيتواصل معك الإدارة لتحويل المبلغ.",
+        "btn_sell_stars": "⭐ بيع نجوم",
+        "sell_enter_amount": "كم نجمة تريد بيعها؟\nأرسل رقماً من 1 إلى 10000 (أو /cancel للإلغاء):",
+        "sell_invalid_amount": "رقم غير صالح. أرسل عدداً بين 1 و 10000.",
+        "sell_invoice_title": "بيع نجوم",
+        "sell_invoice_desc": "دفع {stars} نجمة تليجرام لإتمام طلب البيع.",
+        "sell_price_label": "{stars} نجوم",
+        "sell_paid_ok": "✅ تم استلام {stars} نجمة.\nسيتواصل معك @{contact} لتحويل المبلغ — تأكد أن يمكنك استقبال رسائله.",
         "welcome": "مرحباً {name} 👋\nنقاطك: {points}\nاطلب فيزا من القائمة:",
         "btn_visa": "💳 طلب فيزا",
         "visa_choose_pay": "طلب فيزا واحدة (متبقي {remaining}):\nاختر طريقة الدفع:\n• {points} نقطة\n• أو {stars} نجمة تليجرام",
@@ -117,6 +125,14 @@ TEXTS = {
         "status_rejected": "❌ طلبك #{req_id}: تم رفض الطلب. تواصل مع الإدارة إن احتجت توضيحاً.",
     },
     "en": {
+        "welcome_sell": "Hello {name} 👋\nTap «Sell Stars», enter the amount, then pay with Stars.\nAfter payment, admin will contact you to send your payout.",
+        "btn_sell_stars": "⭐ Sell Stars",
+        "sell_enter_amount": "How many Stars do you want to sell?\nSend a number from 1 to 10000 (or /cancel):",
+        "sell_invalid_amount": "Invalid amount. Send a number from 1 to 10000.",
+        "sell_invoice_title": "Sell Stars",
+        "sell_invoice_desc": "Pay {stars} Telegram Stars to complete your sell request.",
+        "sell_price_label": "{stars} Stars",
+        "sell_paid_ok": "✅ Received {stars} Stars.\n@{contact} will contact you to send your payout.",
         "welcome": "Hello {name} 👋\nYour points: {points}\nOrder a Visa from the menu:",
         "btn_visa": "💳 Order Visa",
         "visa_choose_pay": "One Visa order ({remaining} left):\nChoose payment:\n• {points} points\n• or {stars} Telegram Stars",

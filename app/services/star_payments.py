@@ -94,6 +94,8 @@ async def telegram_refund_stars(
 
 
 def payment_kind_from_payload(payload: str) -> str:
+    if payload.startswith("sellstars:"):
+        return "sell_stars"
     if payload.startswith("visa:"):
         return "visa"
     if payload.startswith("topup:"):
@@ -204,6 +206,7 @@ def list_refundable_payments(db: Session, user_id: int, limit: int = 15) -> list
 
 
 _KIND_LABEL_AR = {
+    "sell_stars": "بيع نجوم",
     "visa": "فيزا",
     "topup": "شحن نقاط",
     "run_open": "جائزة أسبوعية",

@@ -10,16 +10,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Update
 from fastapi import FastAPI, Header, HTTPException, Request
 
-from app.bot.admin_handlers import router as admin_router
-from app.bot.group_guard import router as group_guard_router
 from app.bot.handlers import router as user_router
 from app.bot.payments_handlers import router as payments_router
-from app.bot.discussion_handlers import router as discussion_router
-from app.bot.visa_handlers import router as visa_router
 from app.bot.middlewares import (
     BannedUserMiddleware,
     MaintenanceMiddleware,
-    MandatorySubMiddleware,
     PrivateChatsOnlyMiddleware,
 )
 from app.config import settings
@@ -47,15 +42,9 @@ def build_dispatcher() -> Dispatcher:
     dp.callback_query.middleware(PrivateChatsOnlyMiddleware())
     dp.message.middleware(BannedUserMiddleware())
     dp.callback_query.middleware(BannedUserMiddleware())
-    dp.message.middleware(MandatorySubMiddleware())
-    dp.callback_query.middleware(MandatorySubMiddleware())
     dp.message.middleware(MaintenanceMiddleware())
     dp.callback_query.middleware(MaintenanceMiddleware())
-    dp.include_router(group_guard_router)
-    dp.include_router(admin_router)
     dp.include_router(payments_router)
-    dp.include_router(visa_router)
-    dp.include_router(discussion_router)
     dp.include_router(user_router)
     return dp
 
@@ -132,8 +121,6 @@ def register_routes(app: FastAPI, bot: Bot, dp: Dispatcher) -> None:
                 hooked = info.url == webhook_url()
             except Exception:
                 hooked = False
-        from app.config import settings
-
         db_kind = database_kind()
         return {
             "status": "ok",
@@ -168,7 +155,7 @@ def create_http_app(bot: Bot, dp: Dispatcher, lifespan) -> FastAPI:
 
         app = create_admin_app()
     else:
-        app = FastAPI(title="Transfer Bot", lifespan=lifespan)
+        app = FastAPI(title="Stars Sell Bot", lifespan=lifespan)
     register_routes(app, bot, dp)
     return app
 
@@ -188,18 +175,12 @@ async def main() -> None:
         set_admin_ids(await resolve_admin_ids(bot))
 
         if is_render_without_postgres():
-            logger.error(
-                "DATABASE_URL is SQLite on Render — data will be lost on restart. "
-                "Use Neon Postgres; see DEPLOY-NEON.md"
-            )
+            logger.error("DATABASE_URL is SQLite on Render — data will be lost on restart.")
             from app.services.notify_admins import notify_admins
 
             await notify_admins(
                 bot,
-                "⚠️ البوت على Render بدون قاعدة دائمة (SQLite).\n"
-                "البيانات هتتلمس مع كل إعادة تشغيل.\n\n"
-                "الحل: Neon (مجاني) → ضع DATABASE_URL في Render → Redeploy.\n"
-                "التفاصيل في الملف DEPLOY-NEON.md على GitHub.",
+                "⚠️ البوت على Render بدون قاعدة دائمة (SQLite). استخدم Postgres.",
             )
 
         if use_webhook_mode():
@@ -211,7 +192,6 @@ async def main() -> None:
 
         yield
 
-        # Do not delete webhook on shutdown — Render redeploys would leave the bot offline.
         if polling_task:
             polling_task.cancel()
             try:

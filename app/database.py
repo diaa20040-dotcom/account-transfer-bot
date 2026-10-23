@@ -381,6 +381,8 @@ def init_db() -> None:
             db.add(AppSetting(key="visa_points", value="15"))
         if db.query(AppSetting).filter_by(key="visa_stars").first() is None:
             db.add(AppSetting(key="visa_stars", value="15"))
+        if db.query(AppSetting).filter_by(key="payout_contact_username").first() is None:
+            db.add(AppSetting(key="payout_contact_username", value="Diaoeldeen"))
         if db.query(AppSetting).filter_by(key="bot_maintenance_enabled").first() is None:
             db.add(AppSetting(key="bot_maintenance_enabled", value="0"))
         if db.query(AppSetting).filter_by(key="run_open_stars").first() is None:
