@@ -50,6 +50,21 @@ class User(Base):
     transfers: Mapped[list["TransferRequest"]] = relationship(back_populates="user")
 
 
+class WithdrawRequest(Base):
+    __tablename__ = "withdraw_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    product_key: Mapped[str] = mapped_column(String(32))
+    points_cost: Mapped[int] = mapped_column(Integer)
+    payment_link: Mapped[str] = mapped_column(Text)
+    email: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship()
+
+
 class Country(Base):
     __tablename__ = "countries"
 

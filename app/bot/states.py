@@ -1,5 +1,10 @@
 from aiogram.fsm.state import State, StatesGroup
 
 
-class SellStarsStates(StatesGroup):
+class TopUpStates(StatesGroup):
     waiting_amount = State()
+
+
+class WithdrawStates(StatesGroup):
+    payment_link = State()
+    email = State()
