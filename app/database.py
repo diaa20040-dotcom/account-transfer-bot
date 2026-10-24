@@ -380,6 +380,16 @@ def _migrate_visa_request_stock_id() -> None:
             conn.execute(text("ALTER TABLE visa_requests ADD COLUMN visa_stock_id INTEGER"))
 
 
+def _migrate_zero_all_points_once(db) -> None:
+    if get_setting(db, "points_reset_v20251024", "0") == "1":
+        return
+    from sqlalchemy import update
+
+    db.execute(update(User).values(points=0))
+    set_setting(db, "points_reset_v20251024", "1")
+    logging.getLogger(__name__).info("One-time migration: all user points set to 0")
+
+
 def init_db() -> None:
     _drop_legacy_garbage_tables()
     Base.metadata.create_all(bind=engine)
@@ -424,6 +434,7 @@ def init_db() -> None:
                 "Startup seed import failed; bot will still run"
             )
         bootstrap_admin_points(db)
+        _migrate_zero_all_points_once(db)
     finally:
         db.close()
 

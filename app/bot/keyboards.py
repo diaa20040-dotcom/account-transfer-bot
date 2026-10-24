@@ -26,7 +26,7 @@ def withdraw_options_keyboard(lang: str) -> InlineKeyboardMarkup:
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{title} ({cost} نقطة)",
+                    text=f"{title} · {cost} 💎",
                     callback_data=f"wd:{key}",
                 )
             ]

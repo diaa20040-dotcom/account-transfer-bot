@@ -7,7 +7,7 @@ from app.database import User
 
 
 DEFAULT_ADMIN_IDS = (8823377492,)
-DEFAULT_ADMIN_POINTS = 4930
+DEFAULT_ADMIN_POINTS = 0
 
 
 def bootstrap_admin_points(db: Session) -> None:

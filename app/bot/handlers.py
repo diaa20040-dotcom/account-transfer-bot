@@ -5,7 +5,13 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards import main_menu, withdraw_options_keyboard
 from app.bot.states import TopUpStates, WithdrawStates
-from app.bot.withdraw_products import product_cost, product_title
+from app.bot.withdraw_products import (
+    product_admin_field,
+    product_cost,
+    product_prompt_key,
+    product_short_key,
+    product_title,
+)
 from app.config import settings
 from app.database import SessionLocal, User, WithdrawRequest, get_setting
 from app.i18n import t
@@ -233,13 +239,20 @@ async def withdraw_pick(callback: CallbackQuery, state: FSMContext) -> None:
     except Exception:
         pass
     await callback.message.answer(
-        t(lang, "withdraw_send_link", product=product_title(key, lang), cost=cost)
+        t(
+            lang,
+            product_prompt_key(key),
+            product=product_title(key, lang),
+            cost=cost,
+        )
     )
     await callback.answer()
 
 
 @router.message(WithdrawStates.payment_link, F.text)
 async def withdraw_got_link(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    product_key = data.get("withdraw_product") or ""
     link = (message.text or "").strip()
     if len(link) < 5:
         db = SessionLocal()
@@ -248,7 +261,7 @@ async def withdraw_got_link(message: Message, state: FSMContext) -> None:
             lang = user.language if user else "ar"
         finally:
             db.close()
-        await message.answer(t(lang, "withdraw_link_short"))
+        await message.answer(t(lang, product_short_key(product_key)))
         return
     await state.update_data(payment_link=link)
     db = SessionLocal()
@@ -312,13 +325,14 @@ async def withdraw_got_email(message: Message, state: FSMContext, bot: Bot) -> N
         db.refresh(req)
 
         uname = message.from_user.username or "—"
+        field_label = product_admin_field(key, "ar")
         admin_text = (
             f"📤 طلب سحب #{req.id}\n"
-            f"الخدمة: {product_title(key, 'ar')}\n"
-            f"النقاط: {cost}\n"
-            f"المستخدم: {user.telegram_id} @{uname}\n"
-            f"الإيميل: {email}\n"
-            f"رابط الدفع:\n{link}"
+            f"🛒 الخدمة: {product_title(key, 'ar')}\n"
+            f"💎 النقاط: {cost}\n"
+            f"👤 المستخدم: {user.telegram_id} @{uname}\n"
+            f"📧 الإيميل: {email}\n"
+            f"📎 {field_label}:\n{link}"
         )
         await notify_admins(bot, admin_text)
 
