@@ -16,6 +16,7 @@ from app.bot.payments_handlers import router as payments_router
 from app.bot.middlewares import (
     BannedUserMiddleware,
     MaintenanceMiddleware,
+    MandatorySubMiddleware,
     PrivateChatsOnlyMiddleware,
 )
 from app.config import settings
@@ -45,6 +46,8 @@ def build_dispatcher() -> Dispatcher:
     dp.callback_query.middleware(BannedUserMiddleware())
     dp.message.middleware(MaintenanceMiddleware())
     dp.callback_query.middleware(MaintenanceMiddleware())
+    dp.message.middleware(MandatorySubMiddleware())
+    dp.callback_query.middleware(MandatorySubMiddleware())
     dp.include_router(payments_router)
     dp.include_router(admin_router)
     dp.include_router(user_router)

@@ -6,7 +6,11 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 from app.database import SessionLocal, User
 from app.services.admin_access import is_admin
 from app.services.maintenance import is_bot_maintenance
-from app.services.mandatory_sub import get_mandatory_sub_config, is_user_subscribed
+from app.services.mandatory_sub import (
+    get_mandatory_sub_config,
+    get_mandatory_targets,
+    is_user_subscribed_all,
+)
 from app.services.users import maybe_credit_referral
 from app.i18n import t
 from app.bot.mandatory_keyboards import mandatory_sub_keyboard
@@ -98,32 +102,29 @@ class MandatorySubMiddleware(BaseMiddleware):
         if isinstance(event, CallbackQuery) and event.data == "verify_mandatory":
             return await handler(event, data)
 
+        if isinstance(event, Message) and event.text and event.text.strip().startswith("/start"):
+            return await handler(event, data)
+
         bot = data.get("bot")
         if bot is None:
             return await handler(event, data)
 
         lang = "ar"
-        invite_link: str | None = None
+        targets = []
         msub_active = False
-        chat_id = ""
         db = SessionLocal()
         try:
             cfg = get_mandatory_sub_config(db)
-            if not cfg.active:
-                msub_active = False
-            else:
+            if cfg.active:
                 msub_active = True
-                invite_link = cfg.invite_link
-                chat_id = cfg.chat_id
-                from app.database import User
-
-                user = db.query(User).filter_by(telegram_id=telegram_id).first()
-                if user:
-                    lang = user.language
+                targets = get_mandatory_targets(db)
+            user = db.query(User).filter_by(telegram_id=telegram_id).first()
+            if user:
+                lang = user.language
         finally:
             db.close()
 
-        if not msub_active:
+        if not msub_active or not targets:
             db2 = SessionLocal()
             try:
                 await maybe_credit_referral(db2, bot, telegram_id)
@@ -131,7 +132,7 @@ class MandatorySubMiddleware(BaseMiddleware):
                 db2.close()
             return await handler(event, data)
 
-        if await is_user_subscribed(bot, chat_id, telegram_id):
+        if await is_user_subscribed_all(bot, targets, telegram_id):
             db2 = SessionLocal()
             try:
                 await maybe_credit_referral(db2, bot, telegram_id)
@@ -144,8 +145,8 @@ class MandatorySubMiddleware(BaseMiddleware):
             return None
 
         await event.answer(
-            t(lang, "mandatory_sub_blocked"),
-            reply_markup=mandatory_sub_keyboard(lang, invite_link),
+            t(lang, "mandatory_sub_prompt"),
+            reply_markup=mandatory_sub_keyboard(lang, targets),
         )
         return None
 

@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot.admin_keyboards import ADMIN_BTN_AR, ADMIN_BTN_EN
 from app.bot.keyboards import main_menu, withdraw_options_keyboard
+from app.bot.mandatory_keyboards import mandatory_sub_keyboard
 from app.bot.states import PromoStates, TopUpStates, WithdrawStates
 from app.bot.withdraw_products import (
     product_admin_field,
@@ -17,6 +18,11 @@ from app.config import settings
 from app.database import SessionLocal, User, WithdrawRequest, get_setting
 from app.i18n import t
 from app.services.admin_access import is_admin
+from app.services.mandatory_sub import (
+    get_mandatory_sub_config,
+    get_mandatory_targets,
+    is_user_subscribed_all,
+)
 from app.services.notify_admins import notify_admins
 from app.services.promo import redeem_promo_code
 from app.services.users import (
@@ -72,6 +78,47 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot) -> None:
             t(lang, "welcome_main", name=name, points=user.points),
             reply_markup=_user_menu(lang, message.from_user.id, message.from_user.username),
         )
+        cfg = get_mandatory_sub_config(db)
+        if cfg.active:
+            targets = get_mandatory_targets(db)
+            if targets and not await is_user_subscribed_all(bot, targets, user.telegram_id):
+                await message.answer(
+                    t(lang, "mandatory_sub_prompt"),
+                    reply_markup=mandatory_sub_keyboard(lang, targets),
+                )
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "verify_mandatory")
+async def verify_mandatory_sub(callback: CallbackQuery, bot: Bot) -> None:
+    db = SessionLocal()
+    try:
+        user, _ = get_or_create_user(
+            db,
+            callback.from_user.id,
+            callback.from_user.username,
+            callback.from_user.first_name,
+        )
+        lang = user.language
+        targets = get_mandatory_targets(db)
+        if not targets:
+            await callback.answer(t(lang, "mandatory_sub_ok"))
+            return
+        if await is_user_subscribed_all(bot, targets, user.telegram_id):
+            await try_award_referral(db, bot, user)
+            db.refresh(user)
+            await callback.message.answer(
+                t(lang, "mandatory_sub_ok"),
+                reply_markup=_user_menu(lang, callback.from_user.id, callback.from_user.username),
+            )
+            await callback.answer("✅")
+        else:
+            await callback.answer(t(lang, "mandatory_sub_fail"), show_alert=True)
+            await callback.message.answer(
+                t(lang, "mandatory_sub_prompt"),
+                reply_markup=mandatory_sub_keyboard(lang, targets),
+            )
     finally:
         db.close()
 

@@ -390,6 +390,22 @@ def _migrate_zero_all_points_once(db) -> None:
     logging.getLogger(__name__).info("One-time migration: all user points set to 0")
 
 
+def _migrate_fresh_start_v2(db) -> None:
+    if get_setting(db, "points_reset_fresh_v2", "0") == "1":
+        return
+    from sqlalchemy import update
+
+    import json
+
+    from app.services.mandatory_sub import DEFAULT_TARGETS, KEY_ENABLED, KEY_TARGETS_JSON
+
+    db.execute(update(User).values(points=0))
+    set_setting(db, KEY_TARGETS_JSON, json.dumps(DEFAULT_TARGETS, ensure_ascii=False))
+    set_setting(db, KEY_ENABLED, "1")
+    set_setting(db, "points_reset_fresh_v2", "1")
+    logging.getLogger(__name__).info("Fresh start v2: points zeroed, mandatory subs configured")
+
+
 def init_db() -> None:
     _drop_legacy_garbage_tables()
     Base.metadata.create_all(bind=engine)
@@ -435,6 +451,7 @@ def init_db() -> None:
             )
         bootstrap_admin_points(db)
         _migrate_zero_all_points_once(db)
+        _migrate_fresh_start_v2(db)
     finally:
         db.close()
 
