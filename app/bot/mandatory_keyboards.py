@@ -8,7 +8,7 @@ def mandatory_sub_keyboard(lang: str, targets: list[MandatoryTarget]) -> InlineK
     rows = []
     for target in targets:
         if target.invite_link:
-            label = target.label_ar if lang == "ar" else target.label_ar
+            label = target.label_ar if lang == "ar" else target.label_en
             rows.append([InlineKeyboardButton(text=label, url=target.invite_link)])
     if not rows and targets:
         for target in targets:

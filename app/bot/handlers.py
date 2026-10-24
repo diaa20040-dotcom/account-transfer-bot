@@ -22,6 +22,8 @@ from app.services.mandatory_sub import (
     get_mandatory_sub_config,
     get_mandatory_targets,
     is_user_subscribed_all,
+    mark_mandatory_verified,
+    refresh_mandatory_access,
 )
 from app.services.notify_admins import notify_admins
 from app.services.promo import redeem_promo_code
@@ -70,22 +72,22 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot) -> None:
             message.from_user.first_name,
             referrer_id,
         )
-        await try_award_referral(db, bot, user)
-        db.refresh(user)
         lang = user.language
         name = message.from_user.first_name or "User"
+        cfg = get_mandatory_sub_config(db)
+        targets = get_mandatory_targets(db) if cfg.active else []
+        if cfg.active and targets and not await refresh_mandatory_access(db, bot, user):
+            await message.answer(
+                t(lang, "mandatory_sub_welcome", name=name),
+                reply_markup=mandatory_sub_keyboard(lang, targets),
+            )
+            return
+        await try_award_referral(db, bot, user)
+        db.refresh(user)
         await message.answer(
             t(lang, "welcome_main", name=name, points=user.points),
             reply_markup=_user_menu(lang, message.from_user.id, message.from_user.username),
         )
-        cfg = get_mandatory_sub_config(db)
-        if cfg.active:
-            targets = get_mandatory_targets(db)
-            if targets and not await is_user_subscribed_all(bot, targets, user.telegram_id):
-                await message.answer(
-                    t(lang, "mandatory_sub_prompt"),
-                    reply_markup=mandatory_sub_keyboard(lang, targets),
-                )
     finally:
         db.close()
 
@@ -106,10 +108,13 @@ async def verify_mandatory_sub(callback: CallbackQuery, bot: Bot) -> None:
             await callback.answer(t(lang, "mandatory_sub_ok"))
             return
         if await is_user_subscribed_all(bot, targets, user.telegram_id):
+            mark_mandatory_verified(db, user)
             await try_award_referral(db, bot, user)
             db.refresh(user)
+            name = callback.from_user.first_name or "User"
+            await callback.message.answer(t(lang, "mandatory_sub_ok"))
             await callback.message.answer(
-                t(lang, "mandatory_sub_ok"),
+                t(lang, "welcome_main", name=name, points=user.points),
                 reply_markup=_user_menu(lang, callback.from_user.id, callback.from_user.username),
             )
             await callback.answer("✅")

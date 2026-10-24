@@ -12,8 +12,18 @@ KEY_INVITE_LINK = "mandatory_sub_invite_link"
 KEY_TARGETS_JSON = "mandatory_sub_targets_json"
 
 DEFAULT_TARGETS = [
-    {"chat_id": "@questaplay", "invite_link": "https://t.me/questaplay", "label_ar": "📢 القناة"},
-    {"chat_id": "@Minexaa", "invite_link": "https://t.me/Minexaa", "label_ar": "👥 الجروب"},
+    {
+        "chat_id": "@questaplay",
+        "invite_link": "https://t.me/questaplay",
+        "label_ar": "📢 اشترك في القناة",
+        "label_en": "📢 Join the channel",
+    },
+    {
+        "chat_id": "@Minexaa",
+        "invite_link": "https://t.me/Minexaa",
+        "label_ar": "👥 اشترك في الجروب",
+        "label_en": "👥 Join the group",
+    },
 ]
 
 
@@ -22,6 +32,7 @@ class MandatoryTarget:
     chat_id: str
     invite_link: str | None
     label_ar: str = "🔗 اشتراك"
+    label_en: str = "🔗 Join"
 
 
 @dataclass
@@ -53,8 +64,13 @@ def _parse_targets_json(raw: str) -> list[MandatoryTarget]:
         if not cid:
             continue
         link = (item.get("invite_link") or "").strip() or None
-        label = str(item.get("label_ar") or "🔗 اشتراك").strip()
-        out.append(MandatoryTarget(chat_id=cid, invite_link=link, label_ar=label))
+        label_ar = str(item.get("label_ar") or "🔗 اشتراك").strip()
+        label_en = str(item.get("label_en") or label_ar).strip()
+        out.append(
+            MandatoryTarget(
+                chat_id=cid, invite_link=link, label_ar=label_ar, label_en=label_en
+            )
+        )
     return out
 
 
@@ -62,15 +78,12 @@ def get_mandatory_targets(db: Session) -> list[MandatoryTarget]:
     targets = _parse_targets_json(get_setting(db, KEY_TARGETS_JSON, ""))
     if targets:
         return targets
-    cfg = get_mandatory_sub_config(db)
-    if cfg.chat_id.strip():
-        return [
-            MandatoryTarget(
-                chat_id=cfg.chat_id.strip(),
-                invite_link=cfg.invite_link,
-                label_ar="🔗 اشتراك",
-            )
-        ]
+    if get_setting(db, KEY_ENABLED, "0") == "1":
+        return _parse_targets_json(json.dumps(DEFAULT_TARGETS))
+    chat_id = get_setting(db, KEY_CHAT_ID, "").strip()
+    if chat_id:
+        link = get_setting(db, KEY_INVITE_LINK, "").strip() or None
+        return [MandatoryTarget(chat_id=chat_id, invite_link=link, label_ar="🔗 اشتراك")]
     return []
 
 
@@ -117,3 +130,25 @@ async def is_user_subscribed_all(bot: Bot, targets: list[MandatoryTarget], teleg
         if not await is_user_subscribed(bot, target.chat_id, telegram_id):
             return False
     return True
+
+
+async def refresh_mandatory_access(db: Session, bot: Bot, user) -> bool:
+    """User passed gate: verified once and still member of all mandatory chats."""
+    cfg = get_mandatory_sub_config(db)
+    if not cfg.active:
+        return True
+    targets = get_mandatory_targets(db)
+    if not targets:
+        return True
+    if not getattr(user, "mandatory_verified", False):
+        return False
+    if not await is_user_subscribed_all(bot, targets, user.telegram_id):
+        user.mandatory_verified = False
+        db.commit()
+        return False
+    return True
+
+
+def mark_mandatory_verified(db: Session, user) -> None:
+    user.mandatory_verified = True
+    db.commit()

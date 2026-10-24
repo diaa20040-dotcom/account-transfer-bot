@@ -3,22 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.database import User, get_setting
 from app.i18n import t
-from app.services.mandatory_sub import (
-    get_mandatory_sub_config,
-    get_mandatory_targets,
-    is_user_subscribed_all,
-)
 
 
 async def referral_requirement_met(db: Session, bot: Bot, user: User) -> bool:
-    """Referral counts only after the invited user joins all mandatory channels/groups."""
-    cfg = get_mandatory_sub_config(db)
-    if not cfg.active:
-        return True
-    targets = get_mandatory_targets(db)
-    if not targets:
-        return True
-    return await is_user_subscribed_all(bot, targets, user.telegram_id)
+    """Referral counts only after join + verify on all mandatory channels/groups."""
+    from app.services.mandatory_sub import refresh_mandatory_access
+
+    return await refresh_mandatory_access(db, bot, user)
 
 
 def _get_or_create_referrer(db: Session, referrer_telegram_id: int) -> User | None:

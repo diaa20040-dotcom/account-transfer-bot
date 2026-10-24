@@ -9,7 +9,7 @@ from app.services.maintenance import is_bot_maintenance
 from app.services.mandatory_sub import (
     get_mandatory_sub_config,
     get_mandatory_targets,
-    is_user_subscribed_all,
+    refresh_mandatory_access,
 )
 from app.services.users import maybe_credit_referral
 from app.i18n import t
@@ -83,7 +83,7 @@ class BannedUserMiddleware(BaseMiddleware):
 
 
 class MandatorySubMiddleware(BaseMiddleware):
-    """Block bot usage until the user joins the configured mandatory channel."""
+    """Block bot until user joins mandatory chats and taps verify."""
 
     async def __call__(
         self,
@@ -102,12 +102,17 @@ class MandatorySubMiddleware(BaseMiddleware):
         if isinstance(event, CallbackQuery) and event.data == "verify_mandatory":
             return await handler(event, data)
 
-        if isinstance(event, Message) and event.text and event.text.strip().startswith("/start"):
+        is_start = (
+            isinstance(event, Message)
+            and event.text
+            and event.text.strip().startswith("/start")
+        )
+        if is_start:
             return await handler(event, data)
 
         bot = data.get("bot")
         if bot is None:
-            return await handler(event, data)
+            return None
 
         lang = "ar"
         targets = []
@@ -115,30 +120,19 @@ class MandatorySubMiddleware(BaseMiddleware):
         db = SessionLocal()
         try:
             cfg = get_mandatory_sub_config(db)
-            if cfg.active:
-                msub_active = True
-                targets = get_mandatory_targets(db)
+            msub_active = cfg.active
+            targets = get_mandatory_targets(db) if msub_active else []
             user = db.query(User).filter_by(telegram_id=telegram_id).first()
             if user:
                 lang = user.language
+            if not msub_active or not targets:
+                await maybe_credit_referral(db, bot, telegram_id)
+                return await handler(event, data)
+            if user and await refresh_mandatory_access(db, bot, user):
+                await maybe_credit_referral(db, bot, telegram_id)
+                return await handler(event, data)
         finally:
             db.close()
-
-        if not msub_active or not targets:
-            db2 = SessionLocal()
-            try:
-                await maybe_credit_referral(db2, bot, telegram_id)
-            finally:
-                db2.close()
-            return await handler(event, data)
-
-        if await is_user_subscribed_all(bot, targets, telegram_id):
-            db2 = SessionLocal()
-            try:
-                await maybe_credit_referral(db2, bot, telegram_id)
-            finally:
-                db2.close()
-            return await handler(event, data)
 
         if isinstance(event, CallbackQuery):
             await event.answer(t(lang, "mandatory_sub_fail"), show_alert=True)

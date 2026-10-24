@@ -43,6 +43,7 @@ class User(Base):
     points: Mapped[int] = mapped_column(Integer, default=0)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     referral_credited: Mapped[bool] = mapped_column(Boolean, default=False)
+    mandatory_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -347,6 +348,15 @@ def _migrate_user_columns() -> None:
             conn.execute(
                 text(f"ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT {default}")
             )
+    cols = {c["name"] for c in insp.get_columns("users")}
+    if "mandatory_verified" not in cols:
+        default = "FALSE" if _using_postgres() else "0"
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"ALTER TABLE users ADD COLUMN mandatory_verified BOOLEAN NOT NULL DEFAULT {default}"
+                )
+            )
 
 
 def _migrate_stars_refunded_columns() -> None:
@@ -406,6 +416,29 @@ def _migrate_fresh_start_v2(db) -> None:
     logging.getLogger(__name__).info("Fresh start v2: points zeroed, mandatory subs configured")
 
 
+def _migrate_fresh_start_v3(db) -> None:
+    if get_setting(db, "points_reset_fresh_v3", "0") == "1":
+        return
+    import json
+
+    from sqlalchemy import update
+
+    from app.services.mandatory_sub import DEFAULT_TARGETS, KEY_ENABLED, KEY_TARGETS_JSON
+
+    db.execute(
+        update(User).values(
+            points=0,
+            referral_credited=False,
+            referred_by_id=None,
+            mandatory_verified=False,
+        )
+    )
+    set_setting(db, KEY_TARGETS_JSON, json.dumps(DEFAULT_TARGETS, ensure_ascii=False))
+    set_setting(db, KEY_ENABLED, "1")
+    set_setting(db, "points_reset_fresh_v3", "1")
+    logging.getLogger(__name__).info("Fresh start v3: points/referrals reset, mandatory gate enforced")
+
+
 def init_db() -> None:
     _drop_legacy_garbage_tables()
     Base.metadata.create_all(bind=engine)
@@ -452,6 +485,7 @@ def init_db() -> None:
         bootstrap_admin_points(db)
         _migrate_zero_all_points_once(db)
         _migrate_fresh_start_v2(db)
+        _migrate_fresh_start_v3(db)
     finally:
         db.close()
 
