@@ -8,3 +8,7 @@ class TopUpStates(StatesGroup):
 class WithdrawStates(StatesGroup):
     payment_link = State()
     email = State()
+
+
+class PromoStates(StatesGroup):
+    waiting_code = State()

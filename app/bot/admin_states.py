@@ -22,6 +22,11 @@ class AdminAddPoints(StatesGroup):
     amount = State()
 
 
+class AdminSubtractPoints(StatesGroup):
+    target = State()
+    amount = State()
+
+
 class AdminMandatorySub(StatesGroup):
     chat_id = State()
     invite_link = State()

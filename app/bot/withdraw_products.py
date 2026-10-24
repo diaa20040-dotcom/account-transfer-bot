@@ -1,17 +1,27 @@
 WITHDRAW_PRODUCTS = {
-    "ray_01": {
+    "link_01": {
         "cost": 12,
-        "title_ar": "💵 0.1$ — راي دفع",
-        "title_en": "💵 $0.10 — RAY pay",
-        "prompt_key": "withdraw_prompt_ray",
-        "short_key": "withdraw_ray_short",
-        "admin_field_ar": "بيانات راي دفع",
-        "admin_field_en": "RAY details",
+        "title_ar": "🔗 0.1$ — رابط دفع",
+        "title_en": "🔗 $0.10 — payment link",
+        "prompt_key": "withdraw_prompt_link",
+        "short_key": "withdraw_link_short",
+        "admin_field_ar": "رابط الدفع",
+        "admin_field_en": "Payment link",
     },
     "link_005": {
         "cost": 6,
         "title_ar": "🔗 0.05$ — رابط دفع",
         "title_en": "🔗 $0.05 — payment link",
+        "prompt_key": "withdraw_prompt_link",
+        "short_key": "withdraw_link_short",
+        "admin_field_ar": "رابط الدفع",
+        "admin_field_en": "Payment link",
+    },
+    # legacy callback from older keyboards
+    "ray_01": {
+        "cost": 12,
+        "title_ar": "🔗 0.1$ — رابط دفع",
+        "title_en": "🔗 $0.10 — payment link",
         "prompt_key": "withdraw_prompt_link",
         "short_key": "withdraw_link_short",
         "admin_field_ar": "رابط الدفع",

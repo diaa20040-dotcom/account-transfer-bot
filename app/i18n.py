@@ -1,6 +1,6 @@
 TEXTS = {
     "ar": {
-        "welcome_main": "🌟 أهلاً {name}!\n\n💎 رصيدك: **{points}** نقطة\n📦 من «المتاح» تسحب راي دفع أو رابط دفع\n👥 الإحالات تمنحك نقاطاً مجانية\n\nاختر من القائمة 👇",
+        "welcome_main": "🌟 أهلاً {name}!\n\n💎 رصيدك: **{points}** نقطة\n📦 «المتاح»: سحب **0.1$** أو **0.05$** رابط دفع\n🎁 «برومو كود» لنقاط مجانية\n👥 شارك رابط الإحالة\n\nاختر من القائمة 👇",
         "btn_available": "📦 المتاح",
         "btn_referral": "👥 الإحالات",
         "btn_points": "💎 نقاطي",
@@ -148,7 +148,7 @@ TEXTS = {
         "status_rejected": "❌ طلبك #{req_id}: تم رفض الطلب. تواصل مع الإدارة إن احتجت توضيحاً.",
     },
     "en": {
-        "welcome_main": "🌟 Hi {name}!\n\n💎 Balance: **{points}** points\n📦 Withdraw via RAY or payment link from «Available»\n👥 Refer friends for free points\n\nUse the menu 👇",
+        "welcome_main": "🌟 Hi {name}!\n\n💎 Balance: **{points}** points\n📦 «Available»: $0.10 or $0.05 payment links\n🎁 «Promo code» for bonus points\n👥 Share your referral link\n\nUse the menu 👇",
         "btn_available": "📦 Available",
         "btn_referral": "👥 Referrals",
         "btn_points": "💎 My points",

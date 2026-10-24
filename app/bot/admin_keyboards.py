@@ -7,34 +7,24 @@ ADMIN_BTN_EN = "🛠 Admin panel"
 def admin_main_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 تحديث الإحصائيات", callback_data="adm:stats")],
             [
-                InlineKeyboardButton(text="💳 طلبات الفيزا", callback_data="adm:visas:0"),
-                InlineKeyboardButton(text="📦 مخزون الفيز", callback_data="adm:visa_stock"),
+                InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0"),
+                InlineKeyboardButton(text="🎁 البرومو", callback_data="adm:promos"),
             ],
             [
-                InlineKeyboardButton(text="💰 سعر الفيزا", callback_data="adm:visa_price"),
+                InlineKeyboardButton(text="➕ إضافة نقاط", callback_data="adm:addpoints"),
+                InlineKeyboardButton(text="➖ خصم نقاط", callback_data="adm:subpoints"),
+            ],
+            [InlineKeyboardButton(text="📤 طلبات السحب", callback_data="adm:withdraws:0")],
+            [
                 InlineKeyboardButton(text="⚙️ نقاط الإحالة", callback_data="adm:referral"),
-            ],
-            [InlineKeyboardButton(text="👥 المستخدمون", callback_data="adm:users:0")],
-            [
-                InlineKeyboardButton(text="💎 إضافة نقاط", callback_data="adm:addpoints"),
-                InlineKeyboardButton(text="⛔ إيقاف البوت", callback_data="adm:maintenance"),
+                InlineKeyboardButton(text="⛔ صيانة البوت", callback_data="adm:maintenance"),
             ],
             [InlineKeyboardButton(text="📣 إذاعة", callback_data="adm:broadcast")],
-            [InlineKeyboardButton(text="📢 اشتراك إجباري", callback_data="adm:msub")],
             [
                 InlineKeyboardButton(text="📥 نسخة احتياطية", callback_data="adm:backup"),
-                InlineKeyboardButton(text="📤 استعادة نسخة", callback_data="adm:restore"),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="☁️ رفع النسخة لـ GitHub",
-                    callback_data="adm:push_github",
-                ),
-                InlineKeyboardButton(
-                    text="♻️ جلب من GitHub",
-                    callback_data="adm:reload_seed",
-                ),
+                InlineKeyboardButton(text="📤 استعادة", callback_data="adm:restore"),
             ],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="adm:close")],
         ]

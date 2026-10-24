@@ -35,6 +35,7 @@ from app.bot.admin_states import (
     AdminAddBoxGame,
     AdminAddPromo,
     AdminAddPoints,
+    AdminSubtractPoints,
     AdminAddTask,
     AdminBroadcast,
     AdminSetAllBoxCost,
@@ -76,9 +77,11 @@ from app.database import (
     VisaRequest,
     VisaStock,
     User,
+    WithdrawRequest,
     get_setting,
     set_setting,
 )
+from app.services.admin_stats import format_admin_stats
 from app.services.maintenance import KEY_MAINTENANCE, is_bot_maintenance
 from app.services.promo import normalize_promo_code
 from app.services.admin_access import is_admin, persist_admin
@@ -144,11 +147,17 @@ async def admin_open(message: Message, state: FSMContext) -> None:
     finally:
         db.close()
     await state.clear()
+    db2 = SessionLocal()
+    try:
+        stats = format_admin_stats(db2)
+    finally:
+        db2.close()
     await message.answer(
-        "🛠 **لوحة الإدارة**\nاختر القسم:",
+        f"🛠 **لوحة الإدارة**\n\n{stats}\n\nاختر من القائمة 👇",
         reply_markup=admin_main_inline(),
         parse_mode="Markdown",
     )
+    await message.answer("⌨️", reply_markup=main_menu(lang, True))
 
 
 @router.callback_query(F.data == "adm:close")
@@ -175,12 +184,35 @@ async def admin_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer("غير مصرح", show_alert=True)
         return
     await state.clear()
+    db = SessionLocal()
+    try:
+        stats = format_admin_stats(db)
+    finally:
+        db.close()
     await callback.message.edit_text(
-        "🛠 **لوحة الإدارة**\nاختر القسم:",
+        f"🛠 **لوحة الإدارة**\n\n{stats}\n\nاختر من القائمة 👇",
         reply_markup=admin_main_inline(),
         parse_mode="Markdown",
     )
     await callback.answer()
+
+
+@router.callback_query(F.data == "adm:stats")
+async def admin_stats_refresh(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        await callback.answer("غير مصرح", show_alert=True)
+        return
+    db = SessionLocal()
+    try:
+        stats = format_admin_stats(db)
+    finally:
+        db.close()
+    await callback.message.edit_text(
+        f"🛠 **لوحة الإدارة**\n\n{stats}\n\nاختر من القائمة 👇",
+        reply_markup=admin_main_inline(),
+        parse_mode="Markdown",
+    )
+    await callback.answer("تم التحديث")
 
 
 @router.callback_query(F.data.startswith("adm:visas:"))
@@ -1235,6 +1267,130 @@ def _find_user_by_target(db, text: str) -> User | None:
         tid = int(raw)
         return db.query(User).filter(User.telegram_id == tid).first()
     return db.query(User).filter(User.username == raw).first()
+
+
+@router.callback_query(F.data == "adm:subpoints")
+async def admin_sub_points_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    await state.set_state(AdminSubtractPoints.target)
+    await callback.message.answer(
+        "➖ **خصم نقاط**\nأرسل **معرّف تيليجرام** (رقم) أو **@يوزرنيم**:",
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:usub:"))
+async def admin_sub_points_user(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_only_callback(callback):
+        return
+    uid = int(callback.data.split(":")[-1])
+    await state.set_state(AdminSubtractPoints.amount)
+    await state.update_data(user_db_id=uid)
+    await callback.message.answer("كم نقطة تريد **خصمها**؟ (رقم موجب)")
+    await callback.answer()
+
+
+@router.message(AdminSubtractPoints.target, F.text)
+async def admin_sub_points_target(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    db = SessionLocal()
+    try:
+        user = _find_user_by_target(db, message.text)
+        if not user:
+            await message.answer("لم أجد مستخدمًا.")
+            return
+        await state.update_data(user_db_id=user.id)
+        tg_id, username, points = user.telegram_id, user.username, user.points
+    finally:
+        db.close()
+    await state.set_state(AdminSubtractPoints.amount)
+    await message.answer(
+        f"المستخدم: {tg_id} @{username or '—'}\n"
+        f"الرصيد الحالي: {points}\n\nكم نقطة تُخصم؟"
+    )
+
+
+@router.message(AdminSubtractPoints.amount, F.text)
+async def admin_sub_points_amount(message: Message, state: FSMContext) -> None:
+    if not _admin_only_message(message):
+        return
+    try:
+        amount = int(message.text.strip())
+    except ValueError:
+        await message.answer("أرسل رقمًا صحيحًا.")
+        return
+    if amount <= 0:
+        await message.answer("استخدم رقمًا موجبًا.")
+        return
+    data = await state.get_data()
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=data["user_db_id"]).first()
+        if not user:
+            await message.answer("المستخدم غير موجود.")
+            await state.clear()
+            return
+        user.points = max(0, user.points - amount)
+        db.commit()
+        await message.answer(
+            f"✅ تم خصم {amount} نقطة.\n"
+            f"@{user.username or user.telegram_id} — الرصيد الآن: **{user.points}**",
+            parse_mode="Markdown",
+            reply_markup=admin_main_inline(),
+        )
+    finally:
+        db.close()
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("adm:withdraws:"))
+async def admin_withdraw_list(callback: CallbackQuery) -> None:
+    if not _admin_only_callback(callback):
+        return
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    from app.bot.withdraw_products import product_title
+
+    page = int(callback.data.split(":")[-1])
+    per_page = 5
+    db = SessionLocal()
+    try:
+        q = db.query(WithdrawRequest).order_by(desc(WithdrawRequest.created_at))
+        total = q.count()
+        items = q.offset(page * per_page).limit(per_page).all()
+        lines = ["📤 **طلبات السحب**", ""]
+        if not items:
+            lines.append("لا توجد طلبات حالياً.")
+        for req in items:
+            u = db.query(User).filter_by(id=req.user_id).first()
+            tid = u.telegram_id if u else "—"
+            uname = u.username if u else "—"
+            lines.append(
+                f"#{req.id} · {product_title(req.product_key, 'ar')}\n"
+                f"👤 {tid} @{uname or '—'} · 💎 {req.points_cost} · {req.status}\n"
+                f"📧 {req.email}"
+            )
+            lines.append("")
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:withdraws:{page - 1}"))
+        if (page + 1) * per_page < total:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:withdraws:{page + 1}"))
+        rows = []
+        if nav:
+            rows.append(nav)
+        rows.append([InlineKeyboardButton(text="◀️ الإدارة", callback_data="adm:menu")])
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+            parse_mode="Markdown",
+        )
+    finally:
+        db.close()
+    await callback.answer()
 
 
 @router.callback_query(F.data == "adm:addpoints")

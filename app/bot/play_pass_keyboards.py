@@ -91,8 +91,10 @@ def user_admin_profile_keyboard(user_id: int, is_banned: bool) -> InlineKeyboard
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 إضافة نقاط", callback_data=f"adm:uadd:{user_id}")],
-            [InlineKeyboardButton(text="↩️ استرداد نجوم", callback_data=f"adm:upstars:{user_id}")],
+            [
+                InlineKeyboardButton(text="➕ إضافة نقاط", callback_data=f"adm:uadd:{user_id}"),
+                InlineKeyboardButton(text="➖ خصم نقاط", callback_data=f"adm:usub:{user_id}"),
+            ],
             [ban_btn],
             [InlineKeyboardButton(text="◀️ المستخدمون", callback_data="adm:users:0")],
         ]

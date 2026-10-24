@@ -3,8 +3,9 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from app.bot.admin_keyboards import ADMIN_BTN_AR, ADMIN_BTN_EN
 from app.bot.keyboards import main_menu, withdraw_options_keyboard
-from app.bot.states import TopUpStates, WithdrawStates
+from app.bot.states import PromoStates, TopUpStates, WithdrawStates
 from app.bot.withdraw_products import (
     product_admin_field,
     product_cost,
@@ -15,7 +16,9 @@ from app.bot.withdraw_products import (
 from app.config import settings
 from app.database import SessionLocal, User, WithdrawRequest, get_setting
 from app.i18n import t
+from app.services.admin_access import is_admin
 from app.services.notify_admins import notify_admins
+from app.services.promo import redeem_promo_code
 from app.services.users import (
     get_or_create_user,
     referral_count,
@@ -30,8 +33,14 @@ _STARS_MAX = 10_000
 
 
 def _menu_texts() -> frozenset[str]:
-    keys = ("btn_available", "btn_referral", "btn_points", "btn_topup")
-    return frozenset(t(lang, k) for lang in ("ar", "en") for k in keys)
+    keys = ("btn_available", "btn_referral", "btn_points", "btn_topup", "btn_promo")
+    texts = [t(lang, k) for lang in ("ar", "en") for k in keys]
+    texts.extend((ADMIN_BTN_AR, ADMIN_BTN_EN))
+    return frozenset(texts)
+
+
+def _user_menu(lang: str, telegram_id: int, username: str | None):
+    return main_menu(lang, is_admin(telegram_id, username))
 
 
 @router.message(CommandStart())
@@ -61,7 +70,7 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot) -> None:
         name = message.from_user.first_name or "User"
         await message.answer(
             t(lang, "welcome_main", name=name, points=user.points),
-            reply_markup=main_menu(lang),
+            reply_markup=_user_menu(lang, message.from_user.id, message.from_user.username),
         )
     finally:
         db.close()
@@ -75,7 +84,12 @@ async def cmd_menu(message: Message, state: FSMContext) -> None:
         user, _ = get_or_create_user(
             db, message.from_user.id, message.from_user.username, message.from_user.first_name
         )
-        await message.answer(t(user.language, "use_menu"), reply_markup=main_menu(user.language))
+        await message.answer(
+            t(user.language, "use_menu"),
+            reply_markup=_user_menu(
+                user.language, message.from_user.id, message.from_user.username
+            ),
+        )
     finally:
         db.close()
 
@@ -145,7 +159,10 @@ async def topup_amount(message: Message, state: FSMContext, bot: Bot) -> None:
                 message.from_user.first_name,
             )
             await message.answer(
-                t(user.language, "cancelled"), reply_markup=main_menu(user.language)
+                t(user.language, "cancelled"),
+                reply_markup=_user_menu(
+                    user.language, message.from_user.id, message.from_user.username
+                ),
             )
         finally:
             db.close()
@@ -202,8 +219,72 @@ async def withdraw_cancel(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await callback.message.answer(t(lang, "cancelled"), reply_markup=main_menu(lang))
+    await callback.message.answer(
+        t(lang, "cancelled"),
+        reply_markup=_user_menu(lang, callback.from_user.id, callback.from_user.username),
+    )
     await callback.answer()
+
+
+@router.message(F.text.in_({t("ar", "btn_promo"), t("en", "btn_promo")}))
+async def promo_start(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    db = SessionLocal()
+    try:
+        user, _ = get_or_create_user(
+            db, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        lang = user.language
+    finally:
+        db.close()
+    await state.set_state(PromoStates.waiting_code)
+    await message.answer(t(lang, "promo_enter_code"))
+
+
+@router.message(PromoStates.waiting_code, F.text)
+async def promo_apply(message: Message, state: FSMContext) -> None:
+    if message.text and message.text.strip().lower() in ("/cancel", "/menu"):
+        await state.clear()
+        db = SessionLocal()
+        try:
+            user, _ = get_or_create_user(
+                db,
+                message.from_user.id,
+                message.from_user.username,
+                message.from_user.first_name,
+            )
+            await message.answer(
+                t(user.language, "cancelled"),
+                reply_markup=_user_menu(
+                    user.language, message.from_user.id, message.from_user.username
+                ),
+            )
+        finally:
+            db.close()
+        return
+    db = SessionLocal()
+    try:
+        user, _ = get_or_create_user(
+            db, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        lang = user.language
+        ok, msg_key, pts = redeem_promo_code(db, user, message.text or "")
+        db.refresh(user)
+        if ok:
+            from app.services.snapshot_hook import snapshot_db
+
+            snapshot_db()
+            await message.answer(
+                t(lang, msg_key, points=pts, balance=user.points),
+                reply_markup=_user_menu(
+                    lang, message.from_user.id, message.from_user.username
+                ),
+            )
+        else:
+            await message.answer(t(lang, msg_key))
+    finally:
+        db.close()
+    await state.clear()
 
 
 @router.callback_query(F.data.startswith("wd:"))
@@ -304,7 +385,7 @@ async def withdraw_got_email(message: Message, state: FSMContext, bot: Bot) -> N
         if user.points < cost:
             await message.answer(
                 t(lang, "withdraw_need_points", cost=cost, have=user.points),
-                reply_markup=main_menu(lang),
+                reply_markup=_user_menu(lang, message.from_user.id, message.from_user.username),
             )
             await state.clear()
             return
@@ -338,7 +419,7 @@ async def withdraw_got_email(message: Message, state: FSMContext, bot: Bot) -> N
 
         await message.answer(
             t(lang, "withdraw_submitted", product=product_title(key, lang)),
-            reply_markup=main_menu(lang),
+            reply_markup=_user_menu(lang, message.from_user.id, message.from_user.username),
         )
     finally:
         db.close()
@@ -357,6 +438,11 @@ async def fallback(message: Message, state: FSMContext) -> None:
         user, _ = get_or_create_user(
             db, message.from_user.id, message.from_user.username, message.from_user.first_name
         )
-        await message.answer(t(user.language, "use_menu"), reply_markup=main_menu(user.language))
+        await message.answer(
+            t(user.language, "use_menu"),
+            reply_markup=_user_menu(
+                user.language, message.from_user.id, message.from_user.username
+            ),
+        )
     finally:
         db.close()
